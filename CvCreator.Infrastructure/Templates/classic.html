@@ -1,0 +1,204 @@
+﻿<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{PersonalInfo.FullName}} - Özgeçmiş</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+
+      .container {
+        width: 756px;
+        margin: auto;
+        padding: 24px;
+      }
+
+      h1 {
+        color: #000000;
+      }
+
+      h3 {
+        border-bottom: 2px solid #a8a8a8;
+        border-bottom-style: dotted;
+        padding-bottom: 5px;
+      }
+
+      h4 {
+        color: #a8a8a8;
+      }
+
+      .header {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .summary p {
+        font-size: 14px;
+      }
+
+      .desc .header {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+      }
+
+      .desc .header .info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .desc .header i {
+        color: #a8a8a8;
+      }
+
+      p {
+        font-size: 14px;
+      }
+
+      .doublesection {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .doublesection div {
+        flex: 1;
+      }
+
+      .doublesection .gapped {
+        display: flex;
+        flex-direction: row;
+        gap: 24px;
+        font-size: 14px;
+        align-items: center;
+      }
+
+      .doublesection .gapped div {
+        display: flex;
+        flex-direction: column;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+      <div class="container">
+          <div class="header">
+              <div>
+                  <h1>{{PersonalInfo.FullName}}</h1>
+                  <h4>{{PersonalInfo.JobTitle}}</h4>
+              </div>
+              <div>
+                  <p>Email: {{PersonalInfo.Email}}</p>
+                  <p>Tel: {{PersonalInfo.PhoneNumber}}</p>
+                  <p>Link: {{PersonalInfo.Website}}</p>
+              </div>
+          </div>
+
+          {{#if SummaryInfo}}
+          <div class="summary">
+              <h3>Summary</h3>
+              <p>{{SummaryInfo.Text}}</p>
+          </div>
+          {{/if}}
+
+          {{#if ExperiencesInfo}}
+          <div>
+              <h3>Experience</h3>
+              {{#each ExperiencesInfo}}
+              <div class="desc">
+                  <div class="header">
+                      <div class="info">
+                          <strong>{{Title}}</strong>
+                          <span>{{Company}}</span>
+                      </div>
+                      <i>
+                          {{StartDate}} - {{#if IsCurrent}}Present{{else}}{{EndDate}}{{/if}}
+                      </i>
+                  </div>
+                  <p>{{Text}}</p>
+              </div>
+              {{/each}}
+          </div>
+          {{/if}}
+
+          {{#if EducationsInfo}}
+          <div>
+              <h3>Education</h3>
+              {{#each EducationsInfo}}
+              <div class="desc">
+                  <div class="header">
+                      <div class="info">
+                          <strong>{{Title}}</strong>
+                          <span>{{Institute}}</span>
+                      </div>
+                      <i>
+                          {{StartDate}} - {{
+#if
+            IsCurrent
+                          }}Present{{else}}{{EndDate}}{{/if}}
+                      </i>
+                  </div>
+                  <p>{{Gpa}}</p>
+              </div>
+              {{/each}}
+          </div>
+          {{/if}}
+
+          <div class="doublesection">
+              {{#if SkillsInfo}}
+              <div>
+                  <h3>Skills</h3>
+                  {{#each SkillsInfo}}
+                  <div class="gapped">
+                      <strong>{{Title}}</strong>
+                      <p>{{Scale}}</p>
+                  </div>
+                  {{/each}}
+              </div>
+              {{/if}}
+
+              {{#if LanguagesInfo}}
+              <div>
+                  <h3>Languages</h3>
+                  {{#each LanguagesInfo}}
+                  <div class="gapped">
+                      <strong>{{Title}}</strong>
+                      <p>{{Scale}}</p>
+                  </div>
+                  {{/each}}
+              </div>
+              {{/if}}
+          </div>
+
+          <div class="doublesection">
+              {{#if CertificatesInfo}}
+              <div>
+                  <h3>Certificates</h3>
+                  {{#each CertificatesInfo}}
+                  <div class="gapped">
+                      <strong>{{Title}}</strong>
+                      <strong>{{Issuer}}</strong>
+                      <p>{{Date}}</p>
+                  </div>
+                  {{/each}}
+              </div>
+              {{/if}}
+
+              {{#if ReferencesInfo}}
+              <div>
+                  <h3>References</h3>
+                  {{#each ReferencesInfo}}
+                  <div class="gapped">
+                      <strong>{{FullName}}</strong>
+                      <p>{{contact}}</p>
+                  </div>
+                  {{/each}}
+              </div>
+              {{/if}}
+          </div>
+      </div>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+# # # Visual Studio ve .NET için Genel .gitignore # # #
+
+## Kullanıcıya özel dosyalar (User-specific files)
+# Bu dosyalar sizin yerel makinenizdeki ayarları saklar ve paylaşılmamalıdır.
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Visual Studio 2017+ (Modern)
+# Visual Studio'nun önbellek, ayar ve geçici dosyalarını içeren klasör.
+.vs/
+
+## Build çıktıları (Build artifacts)
+# Kod derlendiğinde oluşan 'bin' (binary) ve 'obj' (object) klasörleri.
+# Bunlar kaynak koddan her zaman yeniden oluşturulabilir.
+[Bb]in/
+[Oo]bj/
+
+## Paketler (Packages)
+# NuGet paketleri. 'packages' klasörü eski .NET Framework projeleri içindir.
+# Modern .NET projeleri global bir paket önbelleği kullanır, ancak bu kural zararsızdır.
+packages/
+*.nupkg
+
+# Modern .NET projelerinde oluşturulan geçici paket varlık dosyaları
+# (Not: 'project.lock.json' dosyası genelde paylaşılır)
+project.assets.json
+*.nuget.props
+*.nuget.targets
+
+## Yerel ayar dosyaları (Local settings)
+# Geliştirme ortamına özel ayarlar, veritabanı bağlantıları veya API anahtarları.
+# Ana 'appsettings.json' dosyası paylaşılmalı, ancak 'Development' olan paylaşılmamalıdır.
+appsettings.Development.json
+secrets.json
+
+# .NET Framework için yerel ayar dosyaları (Web.config hariç)
+*.config
+!Web.config
+
+## IDE ve Eklenti dosyaları (IDE / Tooling)
+# ReSharper gibi eklentilerin önbellek dosyaları
+_ReSharper*/
+*.DotSettings.user
+
+## Test sonuçları (Test Results)
+*.trx
+*.coverage
+
+## İşletim Sistemi dosyaları (OS generated files)
+# Windows
+Thumbs.db
+# macOS
+.DS_Store
