@@ -1,5 +1,4 @@
 using CvCreator.Application.Contracts;
-using CvCreator.Application.Services;
 using CvCreator.Infrastructure;
 using CvCreator.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +24,7 @@ builder.Services.AddSingleton<IPlaywright>(sp =>
 //builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(opt => 
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
