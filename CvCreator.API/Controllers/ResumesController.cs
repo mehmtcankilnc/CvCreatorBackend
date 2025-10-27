@@ -31,8 +31,9 @@ public class ResumesController(
         try
         {
             byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
+            await _resumeService.SaveResume(model.PersonalInfo.FullName, pdfBytes);
 
-            return File(pdfBytes, "application/pdf", "ozgecmis.pdf");
+            return File(pdfBytes, "application/pdf", model.PersonalInfo.FullName);
         }
         catch (FileNotFoundException ex)
         {

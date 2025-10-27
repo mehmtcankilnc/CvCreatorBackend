@@ -33,6 +33,7 @@ project.assets.json
 # Geliştirme ortamına özel ayarlar, veritabanı bağlantıları veya API anahtarları.
 # Ana 'appsettings.json' dosyası paylaşılmalı, ancak 'Development' olan paylaşılmamalıdır.
 appsettings.Development.json
+appsettings.json
 secrets.json
 
 # .NET Framework için yerel ayar dosyaları (Web.config hariç)
