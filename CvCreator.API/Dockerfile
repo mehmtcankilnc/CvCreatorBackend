@@ -1,7 +1,6 @@
 FROM mcr.microsoft.com/playwright/dotnet:v1.44.0-jammy AS build
 WORKDIR /src
 
-COPY ["CvCreator.sln", "."]
 COPY ["CvCreator.API/CvCreator.API.csproj", "CvCreator.API/"]
 COPY ["CvCreator.Application/CvCreator.Application.csproj", "CvCreator.Application/"]
 COPY ["CvCreator.Domain/CvCreator.Domain.csproj", "CvCreator.Domain/"]
