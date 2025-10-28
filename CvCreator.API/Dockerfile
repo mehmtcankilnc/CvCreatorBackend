@@ -7,7 +7,6 @@ COPY ["CvCreator.Domain/CvCreator.Domain.csproj", "CvCreator.Domain/"]
 COPY ["CvCreator.Infrastructure/CvCreator.Infrastructure.csproj", "CvCreator.Infrastructure/"]
 
 RUN dotnet restore "CvCreator.API/CvCreator.API.csproj"
-RUN dotnet playwright install --with-deps
 COPY . .
 
 WORKDIR "/src/CvCreator.API"
