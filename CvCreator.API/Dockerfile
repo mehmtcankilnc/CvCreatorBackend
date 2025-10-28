@@ -12,7 +12,7 @@ COPY . .
 WORKDIR "/src/CvCreator.API"
 RUN dotnet publish "CvCreator.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy AS final
+FROM mcr.microsoft.com/playwright/dotnet:v1.55.0-jammy AS final
 WORKDIR /app
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
