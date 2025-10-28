@@ -1,34 +1,24 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-USER $APP_UID
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
-
-
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-ARG BUILD_CONFIGURATION=Release
+FROM mcr.microsoft.com/playwright/dotnet:v1.44.0-jammy AS build
 WORKDIR /src
+
+COPY ["CvCreator.sln", "."]
 COPY ["CvCreator.API/CvCreator.API.csproj", "CvCreator.API/"]
 COPY ["CvCreator.Application/CvCreator.Application.csproj", "CvCreator.Application/"]
 COPY ["CvCreator.Domain/CvCreator.Domain.csproj", "CvCreator.Domain/"]
 COPY ["CvCreator.Infrastructure/CvCreator.Infrastructure.csproj", "CvCreator.Infrastructure/"]
-RUN dotnet restore "./CvCreator.API/CvCreator.API.csproj"
+
+RUN dotnet restore "CvCreator.sln"
+RUN playwright install --with-deps
 COPY . .
+
 WORKDIR "/src/CvCreator.API"
-RUN dotnet build "./CvCreator.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet publish "CvCreator.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./CvCreator.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
-RUN chmod +x /app/.playwright/node/linux-x64/node
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+COPY --from=build /app/publish .
+COPY --from=build /ms-playwright /ms-playwright
+EXPOSE 8080
 ENTRYPOINT ["dotnet", "CvCreator.API.dll"]
