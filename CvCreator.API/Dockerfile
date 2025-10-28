@@ -30,4 +30,5 @@ RUN dotnet publish "./CvCreator.API.csproj" -c $BUILD_CONFIGURATION -o /app/publ
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+RUN chmod +x /app/.playwright/node/linux-x64/node
 ENTRYPOINT ["dotnet", "CvCreator.API.dll"]
