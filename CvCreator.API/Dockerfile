@@ -7,7 +7,7 @@ COPY ["CvCreator.Application/CvCreator.Application.csproj", "CvCreator.Applicati
 COPY ["CvCreator.Domain/CvCreator.Domain.csproj", "CvCreator.Domain/"]
 COPY ["CvCreator.Infrastructure/CvCreator.Infrastructure.csproj", "CvCreator.Infrastructure/"]
 
-RUN dotnet restore "CvCreator.sln"
+RUN dotnet restore "CvCreator.API/CvCreator.API.csproj"
 RUN playwright install --with-deps
 COPY . .
 
