@@ -50,7 +50,7 @@ public class ResumesController(
     [HttpGet("resumes/{id}")]
     public async Task<IActionResult> GetResumes(string id)
     {
-        if (!string.IsNullOrEmpty(id))
+        if (string.IsNullOrEmpty(id))
         {
             return BadRequest(new { Message = "Geçersiz kullanıcı id!" });
         }
