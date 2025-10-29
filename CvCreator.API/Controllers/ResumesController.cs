@@ -1,4 +1,5 @@
 ﻿using CvCreator.Application.Contracts;
+using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
 using CvCreator.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class ResumesController(
     }
 
     [HttpPost("resumes")]
-    public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName)
+    public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName, string userId)
     {
         if (string.IsNullOrEmpty(templateName))
         {
@@ -31,7 +32,7 @@ public class ResumesController(
         try
         {
             byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
-            await _resumeService.SaveResume(model.PersonalInfo.FullName, pdfBytes);
+            await _resumeService.SaveResume(model.PersonalInfo.FullName, pdfBytes, userId);
 
             return File(pdfBytes, "application/pdf", model.PersonalInfo.FullName);
         }
@@ -43,6 +44,26 @@ public class ResumesController(
         {
             Console.WriteLine(ex.ToString());
             return StatusCode(500, new { Message = "PDF oluşturulurken sunucuda bir hata oluştu."});
+        }
+    }
+
+    [HttpGet("resumes/{id}")]
+    public async Task<IActionResult> GetResumes(string id)
+    {
+        if (!string.IsNullOrEmpty(id))
+        {
+            return BadRequest(new { Message = "Geçersiz kullanıcı id!" });
+        }
+
+        try
+        {
+            var resumes = await _resumeService.GetResumesAsync(id);
+
+            return Ok(resumes);
+        } catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            return StatusCode(500, new { Message = "Özgeçmişler çekilirken bir hata oluştu!" });
         }
     }
 }

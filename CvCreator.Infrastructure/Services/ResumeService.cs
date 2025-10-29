@@ -1,6 +1,7 @@
 ﻿using CvCreator.Application.Contracts;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
 
@@ -26,12 +27,14 @@ public class ResumeService
     }
 
 
-    public async Task SaveResume(string fileName, byte[] fileContent)
+    public async Task SaveResume(string fileName, byte[] fileContent, string userId)
     {
+        var resumeId = Guid.NewGuid();
+
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
         var bucketName = "resumes";
-        var storagePath = $"public/{Guid.NewGuid()}-{fileName}";
+        var storagePath = $"public/{resumeId}-{fileName}";
 
         var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
 
@@ -50,14 +53,21 @@ public class ResumeService
 
         var newResume = new Resume
         {
-            Id = Guid.NewGuid(),
+            Id = resumeId,
             FileName = fileName,
             StoragePath = storagePath,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            UserId = userId,
         };
 
         _appDbContext.Resumes.Add(newResume);
         await _appDbContext.SaveChangesAsync();
+    }
+
+    public async Task<List<Resume>> GetResumesAsync(string id)
+    {
+        var resumes = await _appDbContext.Resumes.Where(resume => resume.UserId == id).ToListAsync();
+        return resumes;
     }
 }
