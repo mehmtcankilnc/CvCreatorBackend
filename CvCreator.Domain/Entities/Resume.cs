@@ -13,5 +13,5 @@ public class Resume
     public string StoragePath { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public string UserId { get; set; }
+    public Guid UserId { get; set; }
 }

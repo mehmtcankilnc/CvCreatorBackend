@@ -57,7 +57,8 @@ public class ResumesController(
 
         try
         {
-            var resumes = await _resumeService.GetResumesAsync(id);
+            Guid.TryParse(id, out var userIdAsGuid);
+            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid);
 
             return Ok(resumes);
         } catch (Exception ex)

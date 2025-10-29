@@ -30,6 +30,7 @@ public class ResumeService
     public async Task SaveResume(string fileName, byte[] fileContent, string userId)
     {
         var resumeId = Guid.NewGuid();
+        var userIdAsGuid = Guid.Parse(userId);
 
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
@@ -58,14 +59,14 @@ public class ResumeService
             StoragePath = storagePath,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            UserId = userId,
+            UserId = userIdAsGuid,
         };
 
         _appDbContext.Resumes.Add(newResume);
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<Resume>> GetResumesAsync(string id)
+    public async Task<List<Resume>> GetResumesAsync(Guid id)
     {
         var resumes = await _appDbContext.Resumes.Where(resume => resume.UserId == id).ToListAsync();
         return resumes;
