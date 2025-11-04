@@ -4,6 +4,7 @@ using CvCreator.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 
 namespace CvCreator.Infrastructure.Services;
 
@@ -26,16 +27,42 @@ public class ResumeService
         return pdfBytes;
     }
 
-
     public async Task SaveResume(string fileName, byte[] fileContent, string userId)
     {
         var resumeId = Guid.NewGuid();
         var userIdAsGuid = Guid.Parse(userId);
 
+        var nameOnly = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+
+        var safeName = nameOnly.ToLowerInvariant();
+
+        safeName = safeName.Replace("ğ", "g")
+                           .Replace("ü", "u")
+                           .Replace("ş", "s")
+                           .Replace("ı", "i")
+                           .Replace("ö", "o")
+                           .Replace("ç", "c");
+
+        safeName = safeName.Replace(" ", "-");
+
+        safeName = Regex.Replace(safeName, @"[^a-z0-9-]", "");
+
+        safeName = Regex.Replace(safeName, @"-{2,}", "-");
+
+        safeName = safeName.Trim('-');
+
+        if (string.IsNullOrWhiteSpace(safeName))
+        {
+            safeName = "resume"; 
+        }
+
+        var safeFileName = $"{safeName}{extension.ToLowerInvariant()}";
+
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
         var bucketName = "resumes";
-        var storagePath = $"public/{resumeId}-{fileName}";
+        var storagePath = $"public/{resumeId}-{safeFileName}";
 
         var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
 
@@ -55,7 +82,7 @@ public class ResumeService
         var newResume = new Resume
         {
             Id = resumeId,
-            FileName = fileName,
+            FileName = safeFileName,
             StoragePath = storagePath,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

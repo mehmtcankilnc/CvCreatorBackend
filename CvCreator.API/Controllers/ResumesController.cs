@@ -24,7 +24,6 @@ public class ResumesController(
     [HttpPost("resumes")]
     public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName, string userId)
     {
-        Console.WriteLine(templateName);
         if (string.IsNullOrEmpty(templateName))
         {
             return BadRequest(new { Message = "Lütfen bir şablon adı belirtin" });
