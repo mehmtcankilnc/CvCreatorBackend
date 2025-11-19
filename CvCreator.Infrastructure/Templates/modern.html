@@ -11,9 +11,8 @@
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
-        background-color: #f4f4f4;
+        background-color: #ffffff;
         margin: 0;
-        padding: 20px;
         color: #333;
       }
 
@@ -21,16 +20,17 @@
         max-width: 900px;
         margin: auto;
         background-color: #ffffff;
-        padding: 40px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        border-radius: 8px;
+        padding: 20px 40px;
+        box-shadow: none;
+        border-radius: 0;
+        min-height: 1100px;
       }
 
       /* --- HEADER BÖLÜMÜ --- */
       .header-section {
         display: flex;
         align-items: center;
-        border-bottom: 2px solid #f0f0f0;
+        border-bottom: 2px solid #ddd;
         padding-bottom: 20px;
       }
 
@@ -146,10 +146,14 @@
         font-size: 0.9em;
         color: #555;
         line-height: 1.5;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        padding-right: 5px;
       }
 
       .item-right ul li {
         margin-bottom: 5px;
+        list-style-position: outside;
       }
 
       /* --- BECERİLER BÖLÜMÜ --- */
@@ -228,95 +232,92 @@
       </header>
 
       <main>
-          {{#if SummaryInfo}}
-          <section class="section">
-              <h2 class="section-title">Summary</h2>
-              <p class="profile-summary">{{SummaryInfo.Text}}</p>
-          </section>
-          {{/if}} {{#if ExperiencesInfo}}
-          <section class="section">
-              <h2 class="section-title">Experience</h2>
-              {{#each ExperiencesInfo}}
-              <div class="item-container">
-                  <div class="item-left">
-                      <p>
-                          {{StartDate}} - {{
-#if
-                IsCurrent
-                          }}Present{{else}}{{EndDate}}{{/if}}
-                      </p>
-                  </div>
-                  <div class="item-right">
-                      <p class="company">{{Company}}</p>
-                      <p class="position">{{Title}}</p>
-                      <ul>
-                          <li>{{Text}}</li>
-                      </ul>
-                  </div>
-              </div>
-              {{/each}}
-          </section>
-          {{/if}} {{#if EducationsInfo}}
-          <section class="section">
-              <h2 class="section-title">Education</h2>
-              {{#each EducationsInfo}}
-              <div class="item-container">
-                  <div class="item-left">
-                      <p>
-                          {{StartDate}} - {{
- #if IsCurrent
-                          }}Present{{else}}{{EndDate}}{{/if}}
-                      </p>
-                  </div>
-                  <div class="item-right">
-                      <p class="degree">{{Title}}</p>
-                      <p class="school">{{Institute}}</p>
-                      <ul>
-                          <li>{{Gpa}}</li>
-                      </ul>
-                  </div>
-              </div>
-              {{/each}}
-          </section>
-          {{/if}} {{#if SkillsInfo}}
-          <section class="section">
-              <h2 class="section-title">Skills</h2>
-              <ul class="skills-list">
-                  {{#each SkillsInfo}}
-                  <li>{{Title}}</li>
-                  {{/each}}
+        {{#if SummaryInfo}}
+        <section class="section">
+          <h2 class="section-title">Summary</h2>
+          <p class="profile-summary">{{SummaryInfo.Text}}</p>
+        </section>
+        {{/if}} {{#if ExperiencesInfo}}
+        <section class="section">
+          <h2 class="section-title">Experience</h2>
+          {{#each ExperiencesInfo}}
+          <div class="item-container">
+            <div class="item-left">
+              <p>
+                {{StartDate}} - {{ #if IsCurrent
+                }}Present{{else}}{{EndDate}}{{/if}}
+              </p>
+            </div>
+            <div class="item-right">
+              <p class="company">{{Company}}</p>
+              <p class="position">{{Title}}</p>
+              <ul>
+                <li>{{Text}}</li>
               </ul>
-          </section>
-          {{/if}} {{#if LanguagesInfo}}
-          <section class="section">
-              <h2 class="section-title">Languages</h2>
-              <div class="language-list">
-                  {{#each LanguagesInfo}}
-                  <div class="lang-item">{{Title}} - {{Scale}}</div>
-                  {{/each}}
-              </div>
-          </section>
-          {{/if}} {{#if CertificatesInfo}}
-          <section class="section">
-              <h2 class="section-title">Certificates</h2>
-              {{#each CertificatesInfo}}
-              <div class="award-item">
-                  <strong>{{Title}}</strong>
-                  <p>{{Issuer}}</p>
-              </div>
-              {{/each}}
-          </section>
-          {{/if}} {{#if ReferencesInfo}}
-          <section class="section">
-              <h2 class="section-title">References</h2>
-              {{#each ReferencesInfo}}
-              <div class="award-item">
-                  <strong>{{FullName}}</strong>
-                  <p>{{Contact}}</p>
-              </div>
-              {{/each}}
-          </section>
-          {{/if}}
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if EducationsInfo}}
+        <section class="section">
+          <h2 class="section-title">Education</h2>
+          {{#each EducationsInfo}}
+          <div class="item-container">
+            <div class="item-left">
+              <p>
+                {{StartDate}} - {{ #if IsCurrent
+                }}Present{{else}}{{EndDate}}{{/if}}
+              </p>
+            </div>
+            <div class="item-right">
+              <p class="degree">{{Title}}</p>
+              <p class="school">{{Institute}}</p>
+              <ul>
+                <li>{{Gpa}}</li>
+              </ul>
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if SkillsInfo}}
+        <section class="section">
+          <h2 class="section-title">Skills</h2>
+          <ul class="skills-list">
+            {{#each SkillsInfo}}
+            <li>{{Title}}</li>
+            {{/each}}
+          </ul>
+        </section>
+        {{/if}} {{#if LanguagesInfo}}
+        <section class="section">
+          <h2 class="section-title">Languages</h2>
+          <div class="language-list">
+            {{#each LanguagesInfo}}
+            <div class="lang-item">{{Title}} - {{Scale}}</div>
+            {{/each}}
+          </div>
+        </section>
+        {{/if}} {{#if CertificatesInfo}}
+        <section class="section">
+          <h2 class="section-title">Certificates</h2>
+          {{#each CertificatesInfo}}
+          <div class="award-item">
+            <strong>{{Title}}</strong>
+            <p>{{Issuer}}</p>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if ReferencesInfo}}
+        <section class="section">
+          <h2 class="section-title">References</h2>
+          {{#each ReferencesInfo}}
+          <div class="award-item">
+            <strong>{{FullName}}</strong>
+            <p>{{Contact}}</p>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
       </main>
     </div>
   </body>

@@ -1,0 +1,302 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{PersonalInfo.FullName}} - Özgeçmiş</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <style>
+      /* --- Genel Stiller --- */
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+      }
+
+      .resume-container {
+        max-width: 900px;
+        margin: 30px auto;
+        background-color: #fff;
+        padding: 40px;
+        box-shadow: none;
+        min-height: 1100px;
+      }
+
+      /* --- Üst Başlık (İsim ve İletişim) --- */
+      .header-section {
+        text-align: center;
+        margin-bottom: 25px;
+      }
+
+      .header-section h1 {
+        font-size: 2.2em;
+        margin: 0 0 5px 0;
+        font-weight: 600;
+        color: #222;
+      }
+
+      .contact-details {
+        display: flex;
+        justify-content: center;
+        gap: 0 25px;
+        font-size: 0.9em;
+        color: #555;
+      }
+
+      .contact-details div {
+        display: flex;
+        align-items: center;
+      }
+
+      .contact-details i {
+        margin-right: 6px;
+        color: #555;
+      }
+
+      /* --- Genel Bölüm Stilleri --- */
+      .section {
+        margin-top: 25px;
+      }
+
+      .section-title {
+        font-size: 1.2em;
+        font-weight: 700;
+        color: #222;
+        margin-bottom: 8px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #222;
+        text-transform: uppercase;
+      }
+
+      /* --- Özet Stili --- */
+      .profile-summary {
+        font-size: 0.95em;
+        line-height: 1.6;
+        color: #555;
+      }
+
+      /* --- Eğitim ve Deneyim (Item) Stilleri --- */
+      .item-container {
+        margin-bottom: 18px;
+        position: relative;
+      }
+
+      .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 5px;
+      }
+
+      .item-header .left {
+        flex: 1;
+      }
+
+      .item-header .right {
+        flex: 0 0 auto;
+        font-size: 0.9em;
+        font-weight: 500;
+        color: #555;
+        text-align: right;
+        margin-left: 10px;
+      }
+
+      .item-title {
+        font-size: 1.05em;
+        font-weight: 700;
+        color: #222;
+        margin: 0;
+      }
+
+      .item-subtitle {
+        font-size: 1em;
+        font-weight: 600;
+        color: #444;
+        margin: 2px 0;
+      }
+
+      .item-detail {
+        font-size: 0.9em;
+        font-weight: 400;
+        color: #666;
+        margin: 0;
+      }
+
+      /* Deneyim/Eğitim Açıklama Listesi */
+      .item-description ul {
+        padding-left: 20px;
+        margin-top: 5px;
+        font-size: 0.9em;
+        color: #555;
+        line-height: 1.5;
+        list-style-type: disc;
+      }
+
+      .item-description ul li {
+        margin-bottom: 4px;
+      }
+
+      /* --- Beceriler (Skills) Stilleri --- */
+      .skills-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px 30px;
+        font-size: 0.9em;
+        color: #333;
+        margin-top: 10px;
+        padding-left: 15px;
+      }
+
+      .skills-grid li {
+        list-style-type: disc;
+        flex: 0 0 22%; /* 4 sütun */
+      }
+
+      /* --- Diller Stili --- */
+      .language-list {
+        display: flex;
+        justify-content: flex-start;
+        gap: 30px;
+        padding: 5px 0;
+        font-size: 0.9em;
+        color: #444;
+      }
+
+      .language-list strong {
+        font-weight: 600;
+      }
+
+      /* --- Sertifikalar/Ödüller Stili --- */
+      .award-item {
+        margin-bottom: 10px;
+        font-size: 0.9em;
+      }
+
+      .award-item strong {
+        display: block;
+        font-weight: 600;
+        font-size: 1em;
+        color: #333;
+      }
+
+      .award-item p {
+        margin: 2px 0 0 0;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="resume-container">
+      <header class="header-section">
+        <h1>{{PersonalInfo.FullName}}</h1>
+
+        <div class="contact-details">
+          <div><i class="fas fa-envelope"></i> {{PersonalInfo.Email}}</div>
+          <div><i class="fas fa-phone"></i> {{PersonalInfo.PhoneNumber}}</div>
+          <div><i class="fas fa-globe"></i> {{PersonalInfo.Website}}</div>
+        </div>
+      </header>
+
+      <main>
+        {{#if SummaryInfo}}
+        <section class="section">
+          <h2 class="section-title">Summary</h2>
+          <p class="profile-summary">{{SummaryInfo.Text}}</p>
+        </section>
+        {{/if}} {{#if ExperiencesInfo}}
+        <section class="section">
+          <h2 class="section-title">Experience</h2>
+          {{#each ExperiencesInfo}}
+          <div class="item-container">
+            <div class="item-header">
+              <div class="left">
+                <p class="item-title">{{Company}}</p>
+                <p class="item-subtitle">{{Title}}</p>
+                <p class="item-detail">{{Location}}</p>
+              </div>
+              <div class="right">
+                <span class="date"
+                  >{{StartDate}} - {{#if
+                  IsCurrent}}present{{else}}{{EndDate}}{{/if}}</span
+                >
+              </div>
+            </div>
+
+            <div class="item-description">
+              <ul>
+                <li>{{Text}}</li>
+              </ul>
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if EducationsInfo}}
+        <section class="section">
+          <h2 class="section-title">Education</h2>
+          {{#each EducationsInfo}}
+          <div class="item-container">
+            <div class="item-header">
+              <div class="left">
+                <p class="item-title">{{Institute}}</p>
+                <p class="item-subtitle">{{Title}}</p>
+                <p class="item-detail">GPA {{Gpa}}</p>
+              </div>
+              <div class="right">
+                <span class="date">{{EndDate}}</span>
+              </div>
+            </div>
+
+            <div class="item-description">
+              <ul>
+                <li>{{Text}}</li>
+              </ul>
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if SkillsInfo}}
+        <section class="section">
+          <h2 class="section-title">Skills</h2>
+          <ul class="skills-grid">
+            {{#each SkillsInfo}}
+            <li>{{Title}}</li>
+            {{/each}}
+          </ul>
+        </section>
+        {{/if}} {{#if LanguagesInfo}}
+        <section class="section">
+          <h2 class="section-title">Languages</h2>
+          <div class="language-list">
+            {{#each LanguagesInfo}}
+            <strong>{{Title}}</strong> ({{Scale}}) {{/each}}
+          </div>
+        </section>
+        {{/if}} {{#if CertificatesInfo}}
+        <section class="section">
+          <h2 class="section-title">Certificates</h2>
+          {{#each CertificatesInfo}}
+          <div class="award-item">
+            <strong>{{Title}}</strong>
+            <p>{{Issuer}}</p>
+            <p>{{Date}}</p>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if ReferencesInfo}}
+        <section class="section">
+          <h2 class="section-title">References</h2>
+          {{#each ReferencesInfo}}
+          <div class="award-item">
+            <strong>{{FullName}}</strong>
+            <p>{{Contact}}</p>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+      </main>
+    </div>
+  </body>
+</html>

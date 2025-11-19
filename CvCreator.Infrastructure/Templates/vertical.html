@@ -1,0 +1,292 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{PersonalInfo.FullName}} - Özgeçmiş</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <style>
+      /* --- Genel Stiller --- */
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #fff; /* Hafif gri dış zemin */
+        margin: 0;
+        padding: 0;
+      }
+
+      .resume-container {
+        max-width: 900px;
+        margin: 30px auto;
+        background-color: #fff;
+        box-shadow: none;
+        display: flex;
+        min-height: 1100px; /* A4 kağıt benzeri bir görünüm için */
+      }
+
+      /* --- Sol Sütun (Sidebar) Stilleri --- */
+      .sidebar {
+        flex: 0 0 280px; /* Sabit genişlik */
+        background-color: #1a374c; /* Koyu Mavi */
+        color: #fff;
+        padding: 30px 25px;
+        position: relative;
+      }
+
+      .sidebar h1 {
+        font-size: 1.8em;
+        margin: 0 0 5px 0;
+        font-weight: 700;
+      }
+
+      .sidebar .title {
+        font-size: 1.2em;
+        font-weight: 400;
+        margin: 0 0 20px 0;
+        color: #b0c4de; /* Açık mavi ton */
+      }
+
+      .profile-pic {
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 20px 0 30px 0;
+        border: 4px solid #fff;
+      }
+
+      .contact-details {
+        font-size: 0.9em;
+        margin-bottom: 30px;
+      }
+
+      .contact-details div {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        word-wrap: break-word;
+      }
+
+      .contact-details i {
+        margin-right: 10px;
+        color: #6a8ba8;
+        width: 15px;
+        text-align: center;
+      }
+
+      /* Ortak Yan Bölüm Başlıkları */
+      .sidebar .section-title {
+        font-size: 1.2em;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin: 20px 0 10px 0;
+        color: #fff;
+        border-bottom: 2px solid #557085;
+        padding-bottom: 5px;
+      }
+
+      /* Dil ve Ödül Stilleri */
+      .lang-item,
+      .award-item {
+        margin-bottom: 15px;
+        font-size: 0.9em;
+      }
+
+      .lang-item strong,
+      .award-item strong {
+        display: block;
+        font-weight: 700;
+      }
+
+      .lang-item p,
+      .award-item p {
+        margin: 2px 0;
+        color: #b0c4de;
+      }
+
+      /* Dil Puanları (Noktalar) */
+      .lang-item .dots {
+        font-size: 1.2em;
+        letter-spacing: 5px;
+      }
+
+      .lang-item .dots .filled {
+        color: #fff;
+      }
+
+      .lang-item .dots .empty {
+        color: #6a8ba8;
+      }
+
+      /* --- Ana İçerik (Main Content) Stilleri --- */
+      .main-content {
+        flex: 1;
+        padding: 30px 30px 30px 40px;
+      }
+
+      /* Ortak Ana Bölüm Başlıkları */
+      .main-content .section-title {
+        font-size: 1.1em;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #333;
+        margin: 25px 0 15px 0;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #ddd;
+      }
+
+      /* Profil Özeti */
+      .profile-summary {
+        font-size: 0.95em;
+        line-height: 1.6;
+        color: #555;
+      }
+
+      /* Deneyim ve Eğitim Detayları */
+      .item-container {
+        margin-bottom: 20px;
+      }
+
+      .item-container strong {
+        font-size: 1em;
+        font-weight: 700;
+        color: #222;
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      .item-container .duration {
+        font-style: italic;
+        font-size: 0.9em;
+        color: #666;
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .item-container .location {
+        font-size: 0.9em;
+        color: #888;
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      .item-container ul {
+        padding-left: 20px;
+        font-size: 0.9em;
+        color: #555;
+        line-height: 1.5;
+        margin-top: 5px;
+      }
+
+      .item-container ul li {
+        margin-bottom: 4px;
+      }
+
+      /* Beceriler */
+      .skills-list {
+        list-style-type: disc;
+        padding-left: 20px;
+        font-size: 0.9em;
+        color: #555;
+        column-count: 2; /* 2 sütunlu beceri listesi */
+        column-gap: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="resume-container">
+      <div class="sidebar">
+        <h1>{{PersonalInfo.FullName}}</h1>
+        <p class="title">{{PersonalInfo.JobTitle}}</p>
+
+        <img
+          src="https://via.placeholder.com/130/ffffff?text=P"
+          alt="{{PersonalInfo.FullName}}"
+          class="profile-pic"
+        />
+
+        <div class="contact-details">
+          <div><i class="fas fa-envelope"></i> {{PersonalInfo.Email}}</div>
+          <div><i class="fas fa-phone"></i> {{PersonalInfo.PhoneNumber}}</div>
+          <div>
+            <i class="fas fa-map-marker-alt"></i> {{PersonalInfo.Address}}
+          </div>
+          <div><i class="fas fa-globe"></i> {{PersonalInfo.Website}}</div>
+        </div>
+
+        {{#if SummaryInfo}}
+        <h2 class="section-title">Summary</h2>
+        <p class="profile-summary" style="color: #b0c4de">
+          {{SummaryInfo.Text}}
+        </p>
+        {{/if}} {{#if LanguagesInfo}}
+        <h2 class="section-title">Languages</h2>
+        {{#each LanguagesInfo}}
+        <div class="lang-item">
+          <strong>{{Title}}</strong>
+          <div class="dots">
+            <span class="filled">{{Scale}}</span>
+          </div>
+        </div>
+        {{/each}} {{/if}} {{#if CertificatesInfo}}
+        <h2 class="section-title">Certificates</h2>
+        {{#each CertificatesInfo}}
+        <div class="award-item">
+          <strong>{{Title}}</strong>
+          <p>{{Issuer}}</p>
+          <p>{{Date}}</p>
+        </div>
+        {{/each}} {{/if}}
+      </div>
+
+      <div class="main-content">
+        {{#if ExperiencesInfo}}
+        <section class="section">
+          <h2 class="section-title">Professional Experience</h2>
+          {{#each ExperiencesInfo}}
+          <div class="item-container">
+            <strong>{{Company}}</strong>
+            <span class="duration"
+              >{{StartDate}} - {{#if
+              IsCurrent}}Present{{else}}{{EndDate}}{{/if}} | {{Location}}</span
+            >
+            <span class="location" style="font-weight: 600">{{Title}}</span>
+
+            <ul>
+              <li>{{Text}}</li>
+            </ul>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if EducationsInfo}}
+        <section class="section">
+          <h2 class="section-title">Education</h2>
+          {{#each EducationsInfo}}
+          <div class="item-container">
+            <strong>{{Institute}}</strong>
+            <span class="duration"
+              >{{StartDate}} - {{#if
+              IsCurrent}}Present{{else}}{{EndDate}}{{/if}} | {{Location}}</span
+            >
+            <span class="location">{{Title}}</span>
+            <ul>
+              <li>GPA: {{Gpa}}</li>
+            </ul>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}} {{#if SkillsInfo}}
+        <section class="section">
+          <h2 class="section-title">Skills</h2>
+          <ul class="skills-list">
+            {{#each SkillsInfo}}
+            <li>{{Title}}</li>
+            {{/each}}
+          </ul>
+        </section>
+        {{/if}}
+      </div>
+    </div>
+  </body>
+</html>
