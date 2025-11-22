@@ -16,6 +16,7 @@ public class ResumeFormValuesModel
     public List<SkillInfo>? SkillsInfo { get; set; }
     public List<LanguageInfo>? LanguagesInfo { get; set; }
     public List<ReferenceInfo>? ReferencesInfo { get; set; }
+    public PhotoInfo? PhotoInfo { get; set; }
 }
 
 public class PersonalInfo
@@ -76,4 +77,9 @@ public class ReferenceInfo
 {
     public string FullName { get; set; }
     public string Contact { get; set; }
+}
+
+public class PhotoInfo
+{
+    public string Base64Image { get; set; }
 }

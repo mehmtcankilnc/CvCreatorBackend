@@ -1,4 +1,4 @@
-﻿<html lang="en">
+﻿﻿<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -26,11 +26,9 @@
         min-height: 1100px;
       }
 
-      /* --- HEADER BÖLÜMÜ --- */
       .header-section {
         display: flex;
         align-items: center;
-        border-bottom: 2px solid #ddd;
         padding-bottom: 20px;
       }
 
@@ -80,7 +78,6 @@
         text-align: center;
       }
 
-      /* --- GENEL BÖLÜM STİLLERİ --- */
       .section {
         margin-top: 25px;
       }
@@ -92,23 +89,23 @@
         margin-bottom: 5px;
         padding-bottom: 5px;
         border-bottom: 2px solid #e0e0e0;
+        page-break-after: avoid;
       }
 
-      /* --- PROFİL BÖLÜMÜ --- */
       .profile-summary {
         font-size: 0.95em;
         line-height: 1.6;
         color: #555;
       }
 
-      /* --- İŞ DENEYİMİ & EĞİTİM BÖLÜMÜ --- */
       .item-container {
         display: flex;
         margin-top: 20px;
+        page-break-inside: avoid;
       }
 
       .item-left {
-        flex: 0 0 150px; /* Sabit genişlik: 150px */
+        flex: 0 0 150px;
         font-size: 0.9em;
         color: #666;
         padding-right: 15px;
@@ -156,7 +153,6 @@
         list-style-position: outside;
       }
 
-      /* --- BECERİLER BÖLÜMÜ --- */
       .skills-list {
         padding-left: 20px;
         column-count: 3;
@@ -169,11 +165,11 @@
         margin-bottom: 8px;
       }
 
-      /* --- DİLLER BÖLÜMÜ --- */
       .language-list {
         display: flex;
-        justify-content: space-around;
+        justify-content: flex-start;
         padding: 10px 0;
+        gap: 30px;
       }
 
       .lang-item {
@@ -194,9 +190,9 @@
         color: #ccc;
       }
 
-      /* --- ÖDÜLLER BÖLÜMÜ --- */
       .award-item {
         font-size: 0.95em;
+        page-break-inside: avoid;
       }
 
       .award-item strong {
@@ -209,16 +205,33 @@
         margin: 5px 0 0 0;
         color: #666;
       }
+
+      @media print {
+        @page {
+          margin-top: 40px;
+        }
+
+        @page :first {
+          margin-top: 0;
+        }
+
+        .resume-container {
+          min-height: 0;
+          margin: 0;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="resume-container">
       <header class="header-section">
+        {{#if PhotoInfo}}
         <img
-          src="https://i.imgur.com/gfg31N0.png"
-          alt="Brian T. Wayne"
+          src="{{PhotoInfo.Base64Image}}"
+          alt="{{PersonalInfo.FullName}}"
           class="profile-pic"
         />
+        {{else}}{{/if}}
         <div class="contact-info">
           <h1>{{PersonalInfo.FullName}}</h1>
           <p class="title">{{PersonalInfo.JobTitle}}</p>

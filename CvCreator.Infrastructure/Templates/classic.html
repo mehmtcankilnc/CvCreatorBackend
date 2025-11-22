@@ -15,7 +15,6 @@
         max-width: 900px;
         margin: auto;
         padding: 24px;
-        min-height: 1100px;
       }
 
       h1 {
@@ -30,6 +29,7 @@
         letter-spacing: 2px;
         font-weight: normal;
         font-size: small;
+        page-break-after: avoid;
       }
 
       h4 {
@@ -71,7 +71,8 @@
       .experience-section .desc,
       .education-section .desc,
       .doublesection .gapped,
-      .doublesection .certificate-item {
+      .doublesection .certificate-item,
+      .desc {
         position: relative;
         padding-left: 18px;
       }
@@ -83,6 +84,11 @@
         content: "•";
         position: absolute;
         left: 0;
+      }
+
+      .desc,
+      .certificate-item {
+        page-break-inside: avoid;
       }
       .doublesection {
         display: flex;
@@ -101,6 +107,7 @@
         gap: 24px;
         font-size: 14px;
         align-items: center;
+        margin-bottom: 6px;
       }
 
       .doublesection .gapped div {
@@ -129,6 +136,20 @@
         width: 14px;
         text-align: center;
         color: #000000;
+      }
+
+      @media print {
+        @page {
+          margin-top: 40px;
+        }
+
+        @page :first {
+          margin-top: 0;
+        }
+
+        .container {
+          margin: 0;
+        }
       }
     </style>
   </head>

@@ -1,8 +1,11 @@
 using CvCreator.Application.Contracts;
 using CvCreator.Infrastructure;
 using CvCreator.Infrastructure.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Playwright;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +29,30 @@ builder.Services.AddSingleton<IPlaywright>(sp =>
 builder.Services.AddDbContext<AppDbContext>(opt => 
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+var supabaseUrl = builder.Configuration["Supabase:Url"];
+var supabaseSecret = builder.Configuration["Supabase:JwtSecret"];
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = $"{supabaseUrl}/auth/v1",
+
+        ValidateAudience = true,
+        ValidAudience = "authenticated",
+
+        ValidateLifetime = true,
+
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(supabaseSecret))
+    };
+});
+
 var app = builder.Build();
 
 //if (app.Environment.IsDevelopment())
@@ -36,6 +63,7 @@ var app = builder.Build();
 
 //app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
