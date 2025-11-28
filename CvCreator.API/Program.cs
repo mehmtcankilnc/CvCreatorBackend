@@ -17,6 +17,7 @@ builder.Services.AddControllers()
 builder.Services.AddScoped<IResumeService, ResumeService>();
 builder.Services.AddScoped<ITemplateService, FileSystemTemplateService>();
 builder.Services.AddScoped<IPdfService, PlaywrightPdfService>();
+builder.Services.AddScoped<ICoverLetterService, CoverLetterService>();
 
 builder.Services.AddSingleton<IPlaywright>(sp =>
 {
@@ -26,7 +27,7 @@ builder.Services.AddSingleton<IPlaywright>(sp =>
 //builder.Services.AddEndpointsApiExplorer();
 //builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(opt => 
+builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var supabaseUrl = builder.Configuration["Supabase:Url"];

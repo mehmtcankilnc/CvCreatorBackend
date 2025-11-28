@@ -1,0 +1,196 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{SenderInfo.FullName}} - Cover Letter</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Open+Sans:wght@400;600&family=Dancing+Script:wght@400&display=swap");
+
+      body {
+        background-color: #f4f4f4;
+        font-family: "Open Sans", sans-serif;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .page {
+        background-color: white;
+        width: 210mm;
+        min-height: 297mm;
+        padding: 15mm 20mm;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        box-sizing: border-box;
+        position: relative;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+      }
+
+      .sender-identity h1 {
+        font-family: "Montserrat", sans-serif;
+        font-size: 28pt;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin: 0;
+        color: #000;
+      }
+
+      .sender-identity p {
+        font-family: "Montserrat", sans-serif;
+        font-size: 14pt;
+        margin: 5px 0 0 0;
+        font-weight: 400;
+      }
+
+      .sender-contact {
+        text-align: right;
+        font-size: 10pt;
+        line-height: 1.5;
+      }
+
+      .sender-contact div {
+        margin-bottom: 2px;
+      }
+
+      hr {
+        border: 0;
+        border-top: 1px solid #333;
+        margin: 20px 0;
+      }
+
+      .date-section {
+        text-align: right;
+        margin-bottom: 30px;
+        font-size: 11pt;
+      }
+
+      .recipient-section {
+        margin-bottom: 30px;
+        font-size: 11pt;
+        line-height: 1.5;
+      }
+
+      .recipient-section strong {
+        font-weight: 600;
+      }
+
+      .subject-line {
+        font-family: "Montserrat", sans-serif;
+        text-transform: uppercase;
+        font-size: 12pt;
+        letter-spacing: 1px;
+        margin-bottom: 30px;
+      }
+
+      .content {
+        font-size: 11pt;
+        line-height: 1.6;
+        text-align: justify;
+        width: 100%;
+      }
+
+      .content p {
+        margin-bottom: 15px;
+        white-space: pre-line;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: normal;
+        max-width: 100%;
+      }
+
+      .footer {
+        margin-top: 40px;
+      }
+
+      .sign-off {
+        margin-bottom: 30px;
+      }
+
+      .printed-name {
+        font-family: "Open Sans", sans-serif;
+        font-size: 11pt;
+        margin-bottom: 5px;
+      }
+
+      .signature {
+        font-family: "Dancing Script", cursive;
+        font-size: 24pt;
+        color: #333;
+      }
+
+      @media print {
+        body {
+          background-color: white;
+          padding: 0;
+        }
+        .page {
+          box-shadow: none;
+          width: 100%;
+          height: auto;
+          padding: 15mm 20mm;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div class="sender-identity">
+          <h1>{{SenderInfo.FullName}}</h1>
+          {{#if SenderInfo.JobTitle}}
+          <p>{{SenderInfo.JobTitle}}</p>
+          {{/if}}
+        </div>
+        <div class="sender-contact">
+          {{#if SenderInfo.PhoneNumber}}
+          <div>{{SenderInfo.PhoneNumber}}</div>
+          {{/if}} {{#if SenderInfo.Email}}
+          <div>{{SenderInfo.Email}}</div>
+          {{/if}} {{#if SenderInfo.Address}}
+          <div>{{SenderInfo.Address}}</div>
+          {{/if}} {{#if SenderInfo.Website}}
+          <div>{{SenderInfo.Website}}</div>
+          {{/if}}
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="date-section">{{MetaInfo.SentDate}}</div>
+
+      <div class="recipient-section">
+        <div><strong>{{RecipientInfo.HiringManagerName}}</strong></div>
+        <div>{{RecipientInfo.CompanyName}}</div>
+      </div>
+
+      <div class="subject-line">{{MetaInfo.Subject}}</div>
+
+      <div class="content">
+        <p>{{Content.Salutation}}</p>
+
+        <p>{{Content.Introduction}}</p>
+
+        <p>{{Content.Body}}</p>
+
+        <p>{{Content.Conclusion}}</p>
+      </div>
+
+      <div class="footer">
+        <div class="sign-off">{{Content.SignOff}}</div>
+
+        <div class="printed-name">{{SenderInfo.FullName}}</div>
+
+        <div class="signature">{{SenderInfo.FullName}}</div>
+      </div>
+    </div>
+  </body>
+</html>
