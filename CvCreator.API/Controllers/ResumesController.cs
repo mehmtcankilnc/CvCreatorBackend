@@ -16,12 +16,6 @@ public class ResumesController(
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly IResumeService _resumeService = resumeService;
 
-    [HttpGet("resumes")]
-    public async Task<IActionResult> GetAllResumes()
-    {
-        return Ok(await _appDbContext.Resumes.ToListAsync());
-    }
-
     [AllowAnonymous]
     [HttpPost("resumes")]
     public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName)
@@ -70,7 +64,7 @@ public class ResumesController(
     }
 
     [HttpGet("resumes/{id}")]
-    public async Task<IActionResult> GetResumes(string id)
+    public async Task<IActionResult> GetResumes(string id, [FromQuery] string? searchText)
     {
         if (string.IsNullOrEmpty(id))
         {
@@ -80,7 +74,7 @@ public class ResumesController(
         try
         {
             Guid.TryParse(id, out var userIdAsGuid);
-            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid);
+            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText);
 
             return Ok(resumes);
         }

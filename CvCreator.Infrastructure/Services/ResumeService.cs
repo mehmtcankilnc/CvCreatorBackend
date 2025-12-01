@@ -9,14 +9,14 @@ using System.Text.RegularExpressions;
 namespace CvCreator.Infrastructure.Services;
 
 public class ResumeService
-    (AppDbContext appDbContext, ITemplateService templateService, 
+    (AppDbContext appDbContext, ITemplateService templateService,
     IPdfService pdfService, IConfiguration configuration) : IResumeService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ITemplateService _templateService = templateService;
     private readonly IPdfService _pdfService = pdfService;
     private readonly IConfiguration _configuration = configuration;
-    private static readonly HttpClient httpClient = new HttpClient();
+    private static readonly HttpClient httpClient = new();
 
     public async Task<byte[]> CreateResumePdfAsync(ResumeFormValuesModel model, string templateName)
     {
@@ -54,7 +54,7 @@ public class ResumeService
 
         if (string.IsNullOrWhiteSpace(safeName))
         {
-            safeName = "resume"; 
+            safeName = "resume";
         }
 
         var safeFileName = $"{safeName}{extension.ToLowerInvariant()}";
@@ -93,9 +93,18 @@ public class ResumeService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<Resume>> GetResumesAsync(Guid id)
+    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText)
     {
-        var resumes = await _appDbContext.Resumes.Where(resume => resume.UserId == id).ToListAsync();
-        return resumes;
+        var query = _appDbContext.Resumes.Where(resume => resume.UserId == id);
+
+        if (!string.IsNullOrEmpty(searchText))
+        {
+            searchText = searchText.ToLower();
+
+            query = query.Where(resume =>
+                EF.Functions.Like(resume.FileName.ToLower(), $"%{searchText}%"));
+        }
+
+        return await query.ToListAsync();
     }
 }
