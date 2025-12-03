@@ -95,11 +95,12 @@ public class ResumeService
 
     public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText)
     {
+        var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.Resumes.Where(resume => resume.UserId == id);
 
-        if (!string.IsNullOrEmpty(searchText))
+        if (!string.IsNullOrEmpty(finalSearchText))
         {
-            searchText = searchText.ToLower();
+            searchText = finalSearchText.Trim().ToLower();
 
             query = query.Where(resume =>
                 EF.Functions.Like(resume.FileName.ToLower(), $"%{searchText}%"));

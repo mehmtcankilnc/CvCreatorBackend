@@ -18,6 +18,7 @@ builder.Services.AddScoped<IResumeService, ResumeService>();
 builder.Services.AddScoped<ITemplateService, FileSystemTemplateService>();
 builder.Services.AddScoped<IPdfService, PlaywrightPdfService>();
 builder.Services.AddScoped<ICoverLetterService, CoverLetterService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddSingleton<IPlaywright>(sp =>
 {

@@ -1,19 +1,15 @@
 ﻿using CvCreator.Application.Contracts;
 using CvCreator.Domain.Models;
-using CvCreator.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace CvCreator.API.Controllers;
 
 [Route("api")]
 [ApiController]
-public class ResumesController(
-    AppDbContext appDbContext, IResumeService resumeService) : ControllerBase
+public class ResumesController(IResumeService resumeService) : ControllerBase
 {
-    private readonly AppDbContext _appDbContext = appDbContext;
     private readonly IResumeService _resumeService = resumeService;
 
     [AllowAnonymous]
