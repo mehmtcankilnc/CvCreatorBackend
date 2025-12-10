@@ -60,7 +60,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [HttpGet("resumes/{id}")]
-    public async Task<IActionResult> GetResumes(string id, [FromQuery] string? searchText)
+    public async Task<IActionResult> GetResumes(string id, [FromQuery] string? searchText, [FromQuery] int? number)
     {
         if (string.IsNullOrEmpty(id))
         {
@@ -70,7 +70,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
         try
         {
             Guid.TryParse(id, out var userIdAsGuid);
-            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText);
+            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, number);
 
             return Ok(resumes);
         }

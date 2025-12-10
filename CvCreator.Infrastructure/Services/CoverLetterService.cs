@@ -93,17 +93,23 @@ public class CoverLetterService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText)
+    public async Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? number)
     {
+        var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.CoverLetters
             .Where(coverletter => coverletter.UserId == id);
 
         if (!string.IsNullOrEmpty(searchText))
         {
-            searchText = searchText.ToLower();
+            searchText = finalSearchText.Trim().ToLower();
 
             query = query.Where(coverletter =>
                 EF.Functions.Like(coverletter.FileName.ToLower(), $"%{searchText}%"));
+        }
+
+        if (number.HasValue)
+        {
+            query = query.Take(number.Value);
         }
 
         return await query.ToListAsync();

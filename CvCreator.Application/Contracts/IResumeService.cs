@@ -7,5 +7,5 @@ public interface IResumeService
 {
     Task<byte[]> CreateResumePdfAsync(ResumeFormValuesModel model, string templateName);
     Task SaveResume(string fileName, byte[] fileContent, string userId);
-    Task<List<Resume>> GetResumesAsync(Guid id, string? searchText);
+    Task<List<Resume>> GetResumesAsync(Guid id, string? searchText, int? number);
 }

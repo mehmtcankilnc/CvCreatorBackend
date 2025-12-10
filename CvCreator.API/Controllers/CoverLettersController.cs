@@ -59,7 +59,7 @@ public class CoverLettersController
     }
 
     [HttpGet("coverletters/{id}")]
-    public async Task<IActionResult> GetCoverLetters(string id, [FromQuery] string? searchText)
+    public async Task<IActionResult> GetCoverLetters(string id, [FromQuery] string? searchText, int? number)
     {
         if (string.IsNullOrEmpty(id))
         {
@@ -69,7 +69,7 @@ public class CoverLettersController
         try
         {
             Guid.TryParse(id, out var userIdAsGuid);
-            var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText);
+            var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, number);
 
             return Ok(coverletters);
         }

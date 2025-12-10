@@ -93,7 +93,7 @@ public class ResumeService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText)
+    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText, int? number)
     {
         var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.Resumes.Where(resume => resume.UserId == id);
@@ -104,6 +104,11 @@ public class ResumeService
 
             query = query.Where(resume =>
                 EF.Functions.Like(resume.FileName.ToLower(), $"%{searchText}%"));
+        }
+
+        if (number.HasValue)
+        {
+            query = query.Take(number.Value);
         }
 
         return await query.ToListAsync();
