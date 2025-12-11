@@ -3,6 +3,7 @@ using CvCreator.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Security.Cryptography.Xml;
 
 namespace CvCreator.API.Controllers;
 
@@ -36,7 +37,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
 
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    await _resumeService.SaveResume(model.PersonalInfo.FullName, pdfBytes, userId);
+                    await _resumeService.SaveResume(pdfBytes, userId, model.PersonalInfo.FullName);
                 }
             }
 
@@ -59,17 +60,23 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
         }
     }
 
-    [HttpGet("resumes/{id}")]
-    public async Task<IActionResult> GetResumes(string id, [FromQuery] string? searchText, [FromQuery] int? number)
+    [Authorize]
+    [HttpGet("resumes")]
+    public async Task<IActionResult> GetResumes([FromQuery] string? searchText, [FromQuery] int? number)
     {
-        if (string.IsNullOrEmpty(id))
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
         {
-            return BadRequest(new { Message = "Geçersiz kullanıcı id!" });
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
         try
         {
-            Guid.TryParse(id, out var userIdAsGuid);
+            if (!Guid.TryParse(userIdString, out var userIdAsGuid))
+            {
+                return BadRequest(new { Message = "Token içindeki ID formatı hatalı." });
+            }
             var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, number);
 
             return Ok(resumes);
@@ -80,4 +87,39 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
             return StatusCode(500, new { Message = "Özgeçmişler çekilirken bir hata oluştu!" });
         }
     }
+
+    [Authorize]
+    [HttpGet("resumes/{resumeId}")]
+    public async Task<IActionResult> GetResumeById(string resumeId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+        }
+
+        try
+        {
+            if (!Guid.TryParse(resumeId, out var resumeIdAsGuid))
+            {
+                return BadRequest(new { Message = "Resume ID formatı hatalı." });
+            }
+
+            var signedUrl = await _resumeService.GetResumeByIdAsync(resumeIdAsGuid);
+
+            if (string.IsNullOrEmpty(signedUrl))
+            {
+                return NotFound(new { Message = "Özgeçmiş bulunamadı." });
+            }
+
+            return Ok(new { Url = signedUrl });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Özgeçmiş çekilirken bir hata oluştu!" });
+        }
+    }
+
+
 }

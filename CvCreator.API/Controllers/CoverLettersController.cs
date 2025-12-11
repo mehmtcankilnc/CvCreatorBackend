@@ -1,6 +1,7 @@
 ﻿using CvCreator.Application.Contracts;
 using CvCreator.Domain.Models;
 using CvCreator.Infrastructure;
+using CvCreator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -35,7 +36,7 @@ public class CoverLettersController
 
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    await _coverLetterService.SaveCoverLetter(model.SenderInfo.FullName, pdfBytes, userId);
+                    await _coverLetterService.SaveCoverLetter(pdfBytes, userId, model.SenderInfo.FullName);
                 }
             }
 
@@ -58,17 +59,23 @@ public class CoverLettersController
         }
     }
 
-    [HttpGet("coverletters/{id}")]
-    public async Task<IActionResult> GetCoverLetters(string id, [FromQuery] string? searchText, int? number)
+    [Authorize]
+    [HttpGet("coverletters")]
+    public async Task<IActionResult> GetMyCoverLetters([FromQuery] string? searchText, [FromQuery] int? number)
     {
-        if (string.IsNullOrEmpty(id))
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
         {
-            return BadRequest(new { Message = "Geçersiz kullanıcı id!" });
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
         try
         {
-            Guid.TryParse(id, out var userIdAsGuid);
+            if (!Guid.TryParse(userIdString, out var userIdAsGuid))
+            {
+                return BadRequest(new { Message = "Token içindeki ID formatı hatalı." });
+            }
             var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, number);
 
             return Ok(coverletters);
@@ -77,6 +84,39 @@ public class CoverLettersController
         {
             Console.WriteLine(ex.ToString());
             return StatusCode(500, new { Message = "Mektuplar çekilirken bir hata oluştu!" });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("coverletters/{coverLetterId}")]
+    public async Task<IActionResult> GetResumeById(string coverLetterId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+        }
+
+        try
+        {
+            if (!Guid.TryParse(coverLetterId, out var coverLetterIdAsGuid))
+            {
+                return BadRequest(new { Message = "CoverLetter ID formatı hatalı." });
+            }
+
+            var signedUrl = await _coverLetterService.GetCoverLetterByIdAsync(coverLetterIdAsGuid);
+
+            if (string.IsNullOrEmpty(signedUrl))
+            {
+                return NotFound(new { Message = "Mektup bulunamadı." });
+            }
+
+            return Ok(new { Url = signedUrl });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Mektup çekilirken bir hata oluştu!" });
         }
     }
 }

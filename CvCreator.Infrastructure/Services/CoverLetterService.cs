@@ -1,10 +1,12 @@
-﻿using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
-using CvCreator.Application.Contracts;
+﻿using CvCreator.Application.Contracts;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace CvCreator.Infrastructure.Services;
 
@@ -27,42 +29,15 @@ public class CoverLetterService
         return pdfBytes;
     }
 
-    public async Task SaveCoverLetter(string fileName, byte[] fileContent, string userId)
+    public async Task SaveCoverLetter(byte[] fileContent, string userId, string fileName)
     {
         var coverLetterId = Guid.NewGuid();
         var userIdAsGuid = Guid.Parse(userId);
 
-        var nameOnly = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-
-        var safeName = nameOnly.ToLowerInvariant();
-
-        safeName = safeName.Replace("ğ", "g")
-                           .Replace("ü", "u")
-                           .Replace("ş", "s")
-                           .Replace("ı", "i")
-                           .Replace("ö", "o")
-                           .Replace("ç", "c");
-
-        safeName = safeName.Replace(" ", "-");
-
-        safeName = Regex.Replace(safeName, @"[^a-z0-9-]", "");
-
-        safeName = Regex.Replace(safeName, @"-{2,}", "-");
-
-        safeName = safeName.Trim('-');
-
-        if (string.IsNullOrWhiteSpace(safeName))
-        {
-            safeName = "coverletter";
-        }
-
-        var safeFileName = $"{safeName}{extension.ToLowerInvariant()}";
-
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
         var bucketName = "coverletters";
-        var storagePath = $"public/{coverLetterId}-{safeFileName}";
+        var storagePath = $"public/{coverLetterId}";
 
         var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
 
@@ -82,7 +57,7 @@ public class CoverLetterService
         var newCoverLetter = new CoverLetter
         {
             Id = coverLetterId,
-            FileName = safeFileName,
+            FileName = fileName,
             StoragePath = storagePath,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
@@ -113,5 +88,42 @@ public class CoverLetterService
         }
 
         return await query.ToListAsync();
+    }
+
+    public async Task<string> GetCoverLetterByIdAsync(Guid coverLetterId)
+    {
+        var supabaseUrl = _configuration["Supabase:Url"];
+        var supabaseKey = _configuration["Supabase:ServiceKey"];
+        var bucketName = "coverletters";
+        var storagePath = $"public/{coverLetterId}";
+
+        var requestUrl = $"{supabaseUrl}/storage/v1/object/sign/{bucketName}/{storagePath}";
+        var payload = new { expiresIn = 60 };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+
+        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
+
+        request.Content = JsonContent.Create(payload);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Supabase API Hatası: {response.StatusCode} - {errorContent}");
+        }
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<SupabaseSignedUrlResponse>(responseContent);
+
+        if (result.SignedUrl.StartsWith("http"))
+        {
+            return result.SignedUrl;
+        }
+        else
+        {
+            return $"{supabaseUrl.TrimEnd('/')}/storage/v1{result.SignedUrl}";
+        }
     }
 }
