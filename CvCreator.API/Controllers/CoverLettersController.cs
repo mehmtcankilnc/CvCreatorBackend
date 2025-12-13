@@ -1,9 +1,7 @@
 ﻿using CvCreator.Application.Contracts;
 using CvCreator.Domain.Models;
 using CvCreator.Infrastructure;
-using CvCreator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -36,7 +34,7 @@ public class CoverLettersController
 
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    await _coverLetterService.SaveCoverLetter(pdfBytes, userId, model.SenderInfo.FullName);
+                    await _coverLetterService.SaveCoverLetter(pdfBytes, userId, model);
                 }
             }
 
@@ -89,7 +87,7 @@ public class CoverLettersController
 
     [Authorize]
     [HttpGet("coverletters/{coverLetterId}")]
-    public async Task<IActionResult> GetResumeById(string coverLetterId)
+    public async Task<IActionResult> GetCoverLetterById(string coverLetterId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -105,18 +103,151 @@ public class CoverLettersController
                 return BadRequest(new { Message = "CoverLetter ID formatı hatalı." });
             }
 
-            var signedUrl = await _coverLetterService.GetCoverLetterByIdAsync(coverLetterIdAsGuid);
+            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterIdAsGuid);
+
+            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
+
+            if (entity.UserId != Guid.Parse(userIdString))
+            {
+                return Forbid();
+            }
+
+            var signedUrl = await _coverLetterService.CreateCoverLetterSignedUrlByIdAsync(coverLetterIdAsGuid);
 
             if (string.IsNullOrEmpty(signedUrl))
             {
                 return NotFound(new { Message = "Mektup bulunamadı." });
             }
 
-            return Ok(new { Url = signedUrl });
+            return Ok(new { Url = signedUrl, FormValues = entity });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { Message = "Mektup çekilirken bir hata oluştu!" });
+        }
+    }
+
+    [Authorize]
+    [HttpGet("coverletters/download/{coverLetterId}")]
+    public async Task<IActionResult> DownloadCoverLetterById(Guid coverLetterId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+        }
+
+        try
+        {
+            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
+
+            if (entity.UserId != Guid.Parse(userIdString))
+            {
+                return Forbid();
+            }
+
+            var fileDto = await _coverLetterService.DownloadCoverLetterAsync(coverLetterId);
+
+            if (fileDto.FileLength.HasValue)
+            {
+                Response.Headers.ContentLength = fileDto.FileLength.Value;
+            }
+
+            return File(fileDto.Stream, fileDto.ContentType);
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { Message = "Mektup indirilirken bir hata oluştu!" });
+        }
+    }
+
+    [Authorize]
+    [HttpDelete("coverletters/{coverLetterId}")]
+    public async Task<IActionResult> DeleteCoverLetterById(Guid coverLetterId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+        }
+
+        try
+        {
+            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
+
+            if (entity.UserId != Guid.Parse(userIdString))
+            {
+                return Forbid();
+            }
+
+            await _coverLetterService.DeleteCoverLetterAsync(entity);
+
+            return NoContent();
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { Message = "Mektup silinirken bir hata oluştu!" });
+        }
+    }
+
+    [Authorize]
+    [HttpPut("coverletters/{coverLetterId}")]
+    public async Task<IActionResult> UpdateCoverLetterById(
+        [FromBody] CoverLetterFormValuesModel model, Guid coverLetterId)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+        }
+
+        try
+        {
+            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
+
+            if (entity.UserId != Guid.Parse(userIdString))
+            {
+                return Forbid();
+            }
+
+            entity.FileName = model.SenderInfo.FullName;
+            entity.UpdatedAt = DateTime.UtcNow;
+            entity.CoverLetterFormValues = model;
+
+            byte[] pdfBytes = await _coverLetterService.CreateCoverLetterPdfAsync(model);
+            
+            await _coverLetterService.UpdateCoverLetter(pdfBytes, userIdString, entity);
+
+            string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
+                ? "coverletter"
+                : model.SenderInfo.FullName.Trim();
+
+            string fileName = $"{cleanName}.pdf";
+
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        catch (FileNotFoundException ex)
+        {
+            return NotFound(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { Message = "Mektup çekilirken bir hata oluştu!" });
+            Console.WriteLine($"PDF Güncelleme Hatası: {ex}");
+            return StatusCode(500, new { Message = "PDF güncellenirken sunucuda bir hata oluştu." });
         }
     }
 }

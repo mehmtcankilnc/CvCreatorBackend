@@ -1,13 +1,14 @@
 ﻿using CvCreator.Application.Contracts;
+using CvCreator.Application.DTOs;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 
 namespace CvCreator.Infrastructure.Services;
 
@@ -30,7 +31,7 @@ public class ResumeService
         return pdfBytes;
     }
 
-    public async Task SaveResume(byte[] fileContent, string userId, string fileName)
+    public async Task SaveResume(byte[] fileContent, string userId, ResumeFormValuesModel model)
     {
         var resumeId = Guid.NewGuid();
         var userIdAsGuid = Guid.Parse(userId);
@@ -58,10 +59,11 @@ public class ResumeService
         var newResume = new Resume
         {
             Id = resumeId,
-            FileName = fileName,
+            FileName = model.PersonalInfo.FullName,
             StoragePath = storagePath,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
+            ResumeFormValues = model,
             UserId = userIdAsGuid,
         };
 
@@ -90,7 +92,7 @@ public class ResumeService
         return await query.ToListAsync();
     }
 
-    public async Task<string> GetResumeByIdAsync(Guid resumeId)
+    public async Task<string> CreateResumeSignedUrlByIdAsync(Guid resumeId)
     {
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
@@ -125,6 +127,107 @@ public class ResumeService
         {
             return $"{supabaseUrl.TrimEnd('/')}/storage/v1{result.SignedUrl}";
         }
+    }
+
+    public async Task<Resume?> FindResumeByIdAsync(Guid resumeId)
+    {
+        return await _appDbContext.Resumes
+            .FirstOrDefaultAsync(c => c.Id == resumeId);
+    }
+
+    public async Task<FileResponseDto> DownloadResumeAsync(Guid resumeId)
+    {
+        var supabaseUrl = _configuration["Supabase:Url"];
+        var supabaseKey = _configuration["Supabase:ServiceKey"];
+        var bucketName = "resumes";
+        var storagePath = $"public/{resumeId}";
+
+        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+
+        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
+
+        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new Exception($"{response.StatusCode} - {errorContent}");
+        }
+
+        var stream = await response.Content.ReadAsStreamAsync();
+
+        long? length = response.Content.Headers.ContentLength;
+
+        return new FileResponseDto
+        {
+            Stream = stream,
+            ContentType = "application/pdf",
+            FileLength = length
+        };
+    }
+
+    public async Task DeleteResumeAsync(Resume resume)
+    {
+        var supabaseUrl = _configuration["Supabase:Url"];
+        var supabaseKey = _configuration["Supabase:ServiceKey"];
+        var bucketName = "resumes";
+        var storagePath = $"public/{resume.Id}";
+
+        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
+
+        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
+
+        var response = await httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+
+            throw new Exception($"Delete failed: {response.StatusCode} - {errorContent}");
+        }
+
+        _appDbContext.Resumes.Remove(resume);
+        await _appDbContext.SaveChangesAsync();
+    }
+
+    public async Task UpdateResume(byte[] fileContent, string userId, Resume resume)
+    {
+        var supabaseUrl = _configuration["Supabase:Url"];
+        var supabaseKey = _configuration["Supabase:ServiceKey"];
+        var bucketName = "resumes";
+        var storagePath = $"public/{resume.Id}";
+
+        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, requestUrl);
+
+        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
+        request.Headers.Add("x-upsert", "true");
+
+        using var content = new ByteArrayContent(fileContent);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+
+        request.Content = content;
+
+        var response = await httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+
+            throw new Exception($"Update failed: {response.StatusCode} - {errorContent}");
+        }
+
+        if (resume.StoragePath != storagePath)
+        {
+            resume.StoragePath = storagePath;
+        }
+
+        await _appDbContext.SaveChangesAsync();
     }
 }
 

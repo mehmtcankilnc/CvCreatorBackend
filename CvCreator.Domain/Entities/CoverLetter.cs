@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using CvCreator.Domain.Models;
 
 namespace CvCreator.Domain.Entities;
 
@@ -13,5 +9,6 @@ public class CoverLetter
     public string StoragePath { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public CoverLetterFormValuesModel CoverLetterFormValues { get; set; }
     public Guid UserId { get; set; }
 }
