@@ -1,91 +1,92 @@
-﻿using CvCreator.Application.Contracts;
+﻿using CvCreator.API.Constants;
+using CvCreator.Application.Common.Models;
+using CvCreator.Application.Contracts;
+using CvCreator.Application.DTOs;
 using CvCreator.Domain.Models;
-using CvCreator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
 namespace CvCreator.API.Controllers;
 
 [Route("api")]
 [ApiController]
+[EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class ResumesController(IResumeService resumeService) : ControllerBase
 {
     private readonly IResumeService _resumeService = resumeService;
 
     [AllowAnonymous]
     [HttpPost("resumes")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName)
     {
         if (string.IsNullOrEmpty(templateName))
         {
-            return BadRequest(new { Message = "Lütfen bir şablon adı belirtin." });
+            return BadRequest(new Result { IsSuccess = false, Message = "Lütfen bir şablon adı belirtin." });
         }
 
         if (!ModelState.IsValid)
         {
-            return BadRequest(ModelState);
-        }
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage);
 
-        try
-        {
-            byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
+            var fullErrorMessage = string.Join("; ", errors);
 
-            if (User.Identity.IsAuthenticated)
+            return BadRequest(new Result
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (!string.IsNullOrEmpty(userId))
-                {
-                    await _resumeService.SaveResume(pdfBytes, userId, model);
-                }
-            }
-
-            string cleanName = string.IsNullOrWhiteSpace(model.PersonalInfo.FullName)
-                ? "resume"
-                : model.PersonalInfo.FullName.Trim();
-
-            string fileName = $"{cleanName}.pdf";
-
-            return File(pdfBytes, "application/pdf", fileName);
+                IsSuccess = false,
+                Message = $"Validasyon hatası: {fullErrorMessage}"
+            });
         }
-        catch (FileNotFoundException ex)
+
+        Guid? userId = null;
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(userIdString, out var parsedId))
         {
-            return NotFound(new { Message = ex.Message });
+            userId = parsedId;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"PDF Oluşturma Hatası: {ex}");
-            return StatusCode(500, new { Message = "PDF oluşturulurken sunucuda bir hata oluştu." });
-        }
+
+        byte[] pdfBytes = await _resumeService.GenerateResumeAsync(model, templateName, userId);
+
+        string cleanName = string.IsNullOrWhiteSpace(model.PersonalInfo.FullName)
+            ? "resume"
+            : model.PersonalInfo.FullName.Trim();
+
+        string fileName = $"{cleanName}.pdf";
+
+        return File(pdfBytes, "application/pdf", fileName);
     }
 
     [Authorize]
     [HttpGet("resumes")]
-    public async Task<IActionResult> GetResumes([FromQuery] string? searchText, [FromQuery] int? number)
+    public async Task<IActionResult> GetResumes([FromQuery] string? searchText, [FromQuery] int? limit)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        if (!Guid.TryParse(userIdString, out var userIdAsGuid))
         {
-            if (!Guid.TryParse(userIdString, out var userIdAsGuid))
-            {
-                return BadRequest(new { Message = "Token içindeki ID formatı hatalı." });
-            }
-            var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, number);
+            return BadRequest(new Result { IsSuccess = false, Message = "Token içindeki ID formatı hatalı." });
+        }
 
-            return Ok(resumes);
-        }
-        catch (Exception ex)
+        var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, limit);
+
+        var dtos = resumes.Select(r => new FileResponseDto
         {
-            Console.WriteLine(ex.ToString());
-            return StatusCode(500, new { Message = "Özgeçmişler çekilirken bir hata oluştu!" });
-        }
+            Id = r.Id,
+            FileName = r.FileName,
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
+        }).ToList();
+
+        return Ok(new Result<List<FileResponseDto>> { IsSuccess = true, Message = "Özgeçmişler getirildi.", Data = dtos});
     }
 
     [Authorize]
@@ -96,75 +97,67 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        if (!Guid.TryParse(resumeId, out var resumeIdAsGuid))
         {
-            if (!Guid.TryParse(resumeId, out var resumeIdAsGuid))
-            {
-                return BadRequest(new { Message = "Resume ID formatı hatalı." });
-            }
-
-            var entity = await _resumeService.FindResumeByIdAsync(resumeIdAsGuid);
-
-            if (entity == null) return NotFound(new { Message = "Resume bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            var signedUrl = await _resumeService.CreateResumeSignedUrlByIdAsync(resumeIdAsGuid);
-
-            if (string.IsNullOrEmpty(signedUrl))
-            {
-                return NotFound(new { Message = "Özgeçmiş bulunamadı." });
-            }
-
-            return Ok(new { Url = signedUrl, FormValues = entity });
+            return BadRequest(new Result { IsSuccess = false, Message = "Özgeçmiş ID formatı hatalı." });
         }
-        catch (Exception)
+
+        var entity = await _resumeService.FindResumeByIdAsync(resumeIdAsGuid);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            return StatusCode(500, new { Message = "Özgeçmiş çekilirken bir hata oluştu!" });
+            return Forbid();
         }
+
+        var signedUrl = await _resumeService.CreateResumeSignedUrlByIdAsync(resumeIdAsGuid);
+
+        if (string.IsNullOrEmpty(signedUrl))
+        {
+            return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+        }
+
+        return Ok(new Result<object>
+        {
+            IsSuccess = true,
+            Message = "Özgeçmiş getirildi.",
+            Data = new { Url = signedUrl, FormValues = entity }
+        });
     }
 
     [Authorize]
     [HttpGet("resumes/download/{resumeId}")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> DownloadResumeById(Guid resumeId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _resumeService.FindResumeByIdAsync(resumeId);
-
-            if (entity == null) return NotFound(new { Message = "Resume bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            var fileDto = await _resumeService.DownloadResumeAsync(resumeId);
-
-            if (fileDto.FileLength.HasValue)
-            {
-                Response.Headers.ContentLength = fileDto.FileLength.Value;
-            }
-
-            return File(fileDto.Stream, fileDto.ContentType);
+            return Forbid();
         }
-        catch (Exception)
+
+        var fileDto = await _resumeService.DownloadResumeAsync(resumeId);
+
+        if (fileDto.FileLength.HasValue)
         {
-            return StatusCode(500, new { Message = "Özgeçmiş indirilirken bir hata oluştu!" });
+            Response.Headers.ContentLength = fileDto.FileLength.Value;
         }
+
+        return File(fileDto.Stream, fileDto.ContentType);
     }
 
     [Authorize]
@@ -175,87 +168,79 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _resumeService.FindResumeByIdAsync(resumeId);
-
-            if (entity == null) return NotFound(new { Message = "Resume bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            await _resumeService.DeleteResumeAsync(entity);
-
-            return NoContent();
+            return Forbid();
         }
-        catch (Exception)
-        {
-            return StatusCode(500, new { Message = "Özgeçmiş silinirken bir hata oluştu!" });
-        }
+
+        await _resumeService.DeleteResumeAsync(entity);
+
+        return NoContent();
     }
 
     [Authorize]
     [HttpPut("resumes/{resumeId}")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> UpdateResumeById(
         [FromBody] ResumeFormValuesModel model, Guid resumeId, [FromQuery] string templateName)
     {
         if (string.IsNullOrEmpty(templateName))
         {
-            return BadRequest(new { Message = "Lütfen bir şablon adı belirtin." });
+            return BadRequest(new Result { IsSuccess = false, Message = "Lütfen bir şablon adı belirtin." });
         }
 
         if (!ModelState.IsValid)
         {
-            return BadRequest(ModelState);
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage);
+
+            var fullErrorMessage = string.Join("; ", errors);
+
+            return BadRequest(new Result
+            {
+                IsSuccess = false,
+                Message = $"Validasyon hatası: {fullErrorMessage}"
+            });
         }
 
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _resumeService.FindResumeByIdAsync(resumeId);
-
-            if (entity == null) return NotFound(new { Message = "Resume bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            entity.FileName = model.PersonalInfo.FullName;
-            entity.UpdatedAt = DateTime.UtcNow;
-            entity.ResumeFormValues = model;
-
-            byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
-
-            await _resumeService.UpdateResume(pdfBytes, userIdString, entity);
-
-            string cleanName = string.IsNullOrWhiteSpace(model.PersonalInfo.FullName)
-                ? "coverletter"
-                : model.PersonalInfo.FullName.Trim();
-
-            string fileName = $"{cleanName}.pdf";
-
-            return File(pdfBytes, "application/pdf", fileName);
+            return Forbid();
         }
-        catch (FileNotFoundException ex)
-        {
-            return NotFound(new { Message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"PDF Güncelleme Hatası: {ex}");
-            return StatusCode(500, new { Message = "PDF güncellenirken sunucuda bir hata oluştu." });
-        }
+
+        entity.FileName = model.PersonalInfo.FullName;
+        entity.UpdatedAt = DateTime.UtcNow;
+        entity.ResumeFormValues = model;
+
+        byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
+
+        await _resumeService.UpdateResume(pdfBytes, userIdString, entity);
+
+        string cleanName = string.IsNullOrWhiteSpace(model.PersonalInfo.FullName)
+            ? "coverletter"
+            : model.PersonalInfo.FullName.Trim();
+
+        string fileName = $"{cleanName}.pdf";
+
+        return File(pdfBytes, "application/pdf", fileName);
     }
 }

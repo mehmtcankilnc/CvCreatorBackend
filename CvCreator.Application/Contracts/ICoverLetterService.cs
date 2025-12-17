@@ -7,11 +7,12 @@ namespace CvCreator.Application.Contracts;
 public interface ICoverLetterService
 {
     Task<byte[]> CreateCoverLetterPdfAsync(CoverLetterFormValuesModel model);
+    Task<byte[]> GenerateCoverLetterAsync(CoverLetterFormValuesModel model, Guid? userId);
     Task SaveCoverLetter(byte[] fileContent, string userId, CoverLetterFormValuesModel model);
-    Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? number);
+    Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? limit);
     Task<CoverLetter?> FindCoverLetterByIdAsync(Guid coverLetterId);
     Task<string> CreateCoverLetterSignedUrlByIdAsync(Guid coverLetterId);
-    Task<FileResponseDto> DownloadCoverLetterAsync(Guid coverLetterId);
+    Task<PdfResponseDto> DownloadCoverLetterAsync(Guid coverLetterId);
     Task DeleteCoverLetterAsync(CoverLetter coverLetter);
     Task UpdateCoverLetter(byte[] fileContent, string userId, CoverLetter coverLetter);
 }

@@ -1,88 +1,87 @@
-﻿using CvCreator.Application.Contracts;
+﻿using CvCreator.API.Constants;
+using CvCreator.Application.Common.Models;
+using CvCreator.Application.Contracts;
+using CvCreator.Application.DTOs;
 using CvCreator.Domain.Models;
-using CvCreator.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
 namespace CvCreator.API.Controllers;
 
 [Route("api")]
 [ApiController]
+[EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class CoverLettersController
-    (AppDbContext appDbContext, ICoverLetterService coverLetterService) : ControllerBase
+    (ICoverLetterService coverLetterService) : ControllerBase
 {
-    private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ICoverLetterService _coverLetterService = coverLetterService;
 
     [AllowAnonymous]
     [HttpPost("coverletters")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> CreateCoverLetter([FromBody] CoverLetterFormValuesModel model)
     {
         if (!ModelState.IsValid)
         {
-            return BadRequest(ModelState);
-        }
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage);
 
-        try
-        {
-            byte[] pdfBytes = await _coverLetterService.CreateCoverLetterPdfAsync(model);
+            var fullErrorMessage = string.Join("; ", errors);
 
-            if (User.Identity.IsAuthenticated)
+            return BadRequest(new Result
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (!string.IsNullOrEmpty(userId))
-                {
-                    await _coverLetterService.SaveCoverLetter(pdfBytes, userId, model);
-                }
-            }
-
-            string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
-                ? "coverletter"
-                : model.SenderInfo.FullName.Trim();
-
-            string fileName = $"{cleanName}.pdf";
-
-            return File(pdfBytes, "application/pdf", fileName);
+                IsSuccess = false,
+                Message = $"Validasyon hatası: {fullErrorMessage}"
+            });
         }
-        catch (FileNotFoundException ex)
+
+        Guid? userId = null;
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(userIdString, out var parsedId))
         {
-            return NotFound(new { Message = ex.Message });
+            userId = parsedId;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"PDF Oluşturma Hatası: {ex}");
-            return StatusCode(500, new { Message = "PDF oluşturulurken sunucuda bir hata oluştu." });
-        }
+
+        byte[] pdfBytes = await _coverLetterService.GenerateCoverLetterAsync(model, userId);
+
+        string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
+            ? "coverletter"
+            : model.SenderInfo.FullName.Trim();
+
+        string fileName = $"{cleanName}.pdf";
+
+        return File(pdfBytes, "application/pdf", fileName);
     }
 
     [Authorize]
     [HttpGet("coverletters")]
-    public async Task<IActionResult> GetMyCoverLetters([FromQuery] string? searchText, [FromQuery] int? number)
+    public async Task<IActionResult> GetMyCoverLetters([FromQuery] string? searchText, [FromQuery] int? limit)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        if (!Guid.TryParse(userIdString, out var userIdAsGuid))
         {
-            if (!Guid.TryParse(userIdString, out var userIdAsGuid))
-            {
-                return BadRequest(new { Message = "Token içindeki ID formatı hatalı." });
-            }
-            var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, number);
+            return BadRequest(new Result { IsSuccess = false, Message = "Token içindeki ID formatı hatalı." });
+        }
+        var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, limit);
 
-            return Ok(coverletters);
-        }
-        catch (Exception ex)
+        var dtos = coverletters.Select(r => new FileResponseDto
         {
-            Console.WriteLine(ex.ToString());
-            return StatusCode(500, new { Message = "Mektuplar çekilirken bir hata oluştu!" });
-        }
+            Id = r.Id,
+            FileName = r.FileName,
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
+        }).ToList();
+
+        return Ok(new Result<List<FileResponseDto>> { IsSuccess = true, Message = "Ön yazılar getirildi.", Data = dtos });
     }
 
     [Authorize]
@@ -93,75 +92,67 @@ public class CoverLettersController
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        if (!Guid.TryParse(coverLetterId, out var coverLetterIdAsGuid))
         {
-            if (!Guid.TryParse(coverLetterId, out var coverLetterIdAsGuid))
-            {
-                return BadRequest(new { Message = "CoverLetter ID formatı hatalı." });
-            }
-
-            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterIdAsGuid);
-
-            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            var signedUrl = await _coverLetterService.CreateCoverLetterSignedUrlByIdAsync(coverLetterIdAsGuid);
-
-            if (string.IsNullOrEmpty(signedUrl))
-            {
-                return NotFound(new { Message = "Mektup bulunamadı." });
-            }
-
-            return Ok(new { Url = signedUrl, FormValues = entity });
+            return BadRequest(new Result { IsSuccess = false, Message = "Ön yazı ID formatı hatalı." });
         }
-        catch (Exception)
+
+        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterIdAsGuid);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            return StatusCode(500, new { Message = "Mektup çekilirken bir hata oluştu!" });
+            return Forbid();
         }
+
+        var signedUrl = await _coverLetterService.CreateCoverLetterSignedUrlByIdAsync(coverLetterIdAsGuid);
+
+        if (string.IsNullOrEmpty(signedUrl))
+        {
+            return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+        }
+
+        return Ok(new Result<object>
+        {
+            IsSuccess = true,
+            Message = "Ön yazı getirildi.",
+            Data = new { Url = signedUrl, FormValues = entity }
+        });
     }
 
     [Authorize]
     [HttpGet("coverletters/download/{coverLetterId}")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> DownloadCoverLetterById(Guid coverLetterId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
-
-            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            var fileDto = await _coverLetterService.DownloadCoverLetterAsync(coverLetterId);
-
-            if (fileDto.FileLength.HasValue)
-            {
-                Response.Headers.ContentLength = fileDto.FileLength.Value;
-            }
-
-            return File(fileDto.Stream, fileDto.ContentType);
+            return Forbid();
         }
-        catch (Exception)
+
+        var fileDto = await _coverLetterService.DownloadCoverLetterAsync(coverLetterId);
+
+        if (fileDto.FileLength.HasValue)
         {
-            return StatusCode(500, new { Message = "Mektup indirilirken bir hata oluştu!" });
+            Response.Headers.ContentLength = fileDto.FileLength.Value;
         }
+
+        return File(fileDto.Stream, fileDto.ContentType);
     }
 
     [Authorize]
@@ -172,82 +163,74 @@ public class CoverLettersController
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
-
-            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            await _coverLetterService.DeleteCoverLetterAsync(entity);
-
-            return NoContent();
+            return Forbid();
         }
-        catch (Exception)
-        {
-            return StatusCode(500, new { Message = "Mektup silinirken bir hata oluştu!" });
-        }
+
+        await _coverLetterService.DeleteCoverLetterAsync(entity);
+
+        return NoContent();
     }
 
     [Authorize]
     [HttpPut("coverletters/{coverLetterId}")]
+    [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> UpdateCoverLetterById(
         [FromBody] CoverLetterFormValuesModel model, Guid coverLetterId)
     {
         if (!ModelState.IsValid)
         {
-            return BadRequest(ModelState);
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage);
+
+            var fullErrorMessage = string.Join("; ", errors);
+
+            return BadRequest(new Result
+            {
+                IsSuccess = false,
+                Message = $"Validasyon hatası: {fullErrorMessage}"
+            });
         }
 
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrEmpty(userIdString))
         {
-            return Unauthorized(new { Message = "Kullanıcı kimliği doğrulanamadı." });
+            return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        try
+        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+
+        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+
+        if (entity.UserId != Guid.Parse(userIdString))
         {
-            var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
-
-            if (entity == null) return NotFound(new { Message = "Cover letter bulunamadı." });
-
-            if (entity.UserId != Guid.Parse(userIdString))
-            {
-                return Forbid();
-            }
-
-            entity.FileName = model.SenderInfo.FullName;
-            entity.UpdatedAt = DateTime.UtcNow;
-            entity.CoverLetterFormValues = model;
-
-            byte[] pdfBytes = await _coverLetterService.CreateCoverLetterPdfAsync(model);
-            
-            await _coverLetterService.UpdateCoverLetter(pdfBytes, userIdString, entity);
-
-            string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
-                ? "coverletter"
-                : model.SenderInfo.FullName.Trim();
-
-            string fileName = $"{cleanName}.pdf";
-
-            return File(pdfBytes, "application/pdf", fileName);
+            return Forbid();
         }
-        catch (FileNotFoundException ex)
-        {
-            return NotFound(new { Message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"PDF Güncelleme Hatası: {ex}");
-            return StatusCode(500, new { Message = "PDF güncellenirken sunucuda bir hata oluştu." });
-        }
+
+        entity.FileName = model.SenderInfo.FullName;
+        entity.UpdatedAt = DateTime.UtcNow;
+        entity.CoverLetterFormValues = model;
+
+        byte[] pdfBytes = await _coverLetterService.CreateCoverLetterPdfAsync(model);
+        
+        await _coverLetterService.UpdateCoverLetter(pdfBytes, userIdString, entity);
+
+        string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
+            ? "coverletter"
+            : model.SenderInfo.FullName.Trim();
+
+        string fileName = $"{cleanName}.pdf";
+
+        return File(pdfBytes, "application/pdf", fileName);
     }
 }

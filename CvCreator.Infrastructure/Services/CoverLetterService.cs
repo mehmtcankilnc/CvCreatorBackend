@@ -31,6 +31,18 @@ public class CoverLetterService
         return pdfBytes;
     }
 
+    public async Task<byte[]> GenerateCoverLetterAsync(CoverLetterFormValuesModel model, Guid? userId)
+    {
+        byte[] pdfBytes = await CreateCoverLetterPdfAsync(model);
+
+        if (userId.HasValue)
+        {
+            await SaveCoverLetter(pdfBytes, userId.Value.ToString(), model);
+        }
+
+        return pdfBytes;
+    }
+
     public async Task SaveCoverLetter(byte[] fileContent, string userId, CoverLetterFormValuesModel model)
     {
         var coverLetterId = Guid.NewGuid();
@@ -71,7 +83,7 @@ public class CoverLetterService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? number)
+    public async Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? limit)
     {
         var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.CoverLetters
@@ -85,9 +97,9 @@ public class CoverLetterService
                 EF.Functions.Like(coverletter.FileName.ToLower(), $"%{searchText}%"));
         }
 
-        if (number.HasValue)
+        if (limit.HasValue)
         {
-            query = query.Take(number.Value);
+            query = query.Take(limit.Value);
         }
 
         return await query.ToListAsync();
@@ -136,7 +148,7 @@ public class CoverLetterService
             .FirstOrDefaultAsync(c => c.Id == coverLetterId);
     }
 
-    public async Task<FileResponseDto> DownloadCoverLetterAsync(Guid coverLetterId)
+    public async Task<PdfResponseDto> DownloadCoverLetterAsync(Guid coverLetterId)
     {
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
@@ -161,7 +173,7 @@ public class CoverLetterService
 
         long? length = response.Content.Headers.ContentLength;
 
-        return new FileResponseDto
+        return new PdfResponseDto
         {
             Stream = stream,
             ContentType = "application/pdf",

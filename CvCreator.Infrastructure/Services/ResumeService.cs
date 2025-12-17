@@ -31,6 +31,18 @@ public class ResumeService
         return pdfBytes;
     }
 
+    public async Task<byte[]> GenerateResumeAsync(ResumeFormValuesModel model, string templateName, Guid? userId)
+    {
+        byte[] pdfBytes = await CreateResumePdfAsync(model, templateName);
+
+        if (userId.HasValue)
+        {
+            await SaveResume(pdfBytes, userId.Value.ToString(), model);
+        }
+
+        return pdfBytes;
+    }
+
     public async Task SaveResume(byte[] fileContent, string userId, ResumeFormValuesModel model)
     {
         var resumeId = Guid.NewGuid();
@@ -71,7 +83,7 @@ public class ResumeService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText, int? number)
+    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText, int? limit)
     {
         var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.Resumes.Where(resume => resume.UserId == id);
@@ -84,9 +96,9 @@ public class ResumeService
                 EF.Functions.Like(resume.FileName.ToLower(), $"%{searchText}%"));
         }
 
-        if (number.HasValue)
+        if (limit.HasValue)
         {
-            query = query.Take(number.Value);
+            query = query.Take(limit.Value);
         }
 
         return await query.ToListAsync();
@@ -135,7 +147,7 @@ public class ResumeService
             .FirstOrDefaultAsync(c => c.Id == resumeId);
     }
 
-    public async Task<FileResponseDto> DownloadResumeAsync(Guid resumeId)
+    public async Task<PdfResponseDto> DownloadResumeAsync(Guid resumeId)
     {
         var supabaseUrl = _configuration["Supabase:Url"];
         var supabaseKey = _configuration["Supabase:ServiceKey"];
@@ -160,7 +172,7 @@ public class ResumeService
 
         long? length = response.Content.Headers.ContentLength;
 
-        return new FileResponseDto
+        return new PdfResponseDto
         {
             Stream = stream,
             ContentType = "application/pdf",

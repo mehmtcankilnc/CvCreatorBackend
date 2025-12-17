@@ -1,3 +1,5 @@
+using CvCreator.API.Extensions;
+using CvCreator.API.Middlewares;
 using CvCreator.Application.Contracts;
 using CvCreator.Infrastructure;
 using CvCreator.Infrastructure.Services;
@@ -10,6 +12,8 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.PropertyNamingPolicy =
@@ -21,13 +25,14 @@ builder.Services.AddScoped<IPdfService, PlaywrightPdfService>();
 builder.Services.AddScoped<ICoverLetterService, CoverLetterService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
+builder.Services.AddCustomRateLimiting();
+
 builder.Services.AddSingleton<IPlaywright>(sp =>
 {
     return Playwright.CreateAsync().GetAwaiter().GetResult();
 });
 
-//builder.Services.AddEndpointsApiExplorer();
-//builder.Services.AddSwaggerGen();
+var policyCollection = new HeaderPolicyCollection().AddDefaultSecurityHeaders();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -64,16 +69,19 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
-//if (app.Environment.IsDevelopment())
-//{
-//    app.UseSwagger();
-//    app.UseSwaggerUI();
-//}
+if (!app.Environment.IsDevelopment()) 
+    app.UseHsts();
 
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
+
+app.UseSecurityHeaders(policyCollection);
+
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 
