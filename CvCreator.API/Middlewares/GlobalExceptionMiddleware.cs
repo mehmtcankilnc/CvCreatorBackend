@@ -2,9 +2,10 @@
 
 namespace CvCreator.API.Middlewares;
 
-public class GlobalExceptionMiddleware(RequestDelegate next)
+public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
 {
     private readonly RequestDelegate _next = next;
+    private readonly ILogger _logger = logger;
 
     public async Task Invoke(HttpContext context)
     {
@@ -12,8 +13,10 @@ public class GlobalExceptionMiddleware(RequestDelegate next)
         {
             await _next(context);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Beklenmeyen bir hata oluştu!");
+
             context.Response.StatusCode = 500;
             context.Response.ContentType = "application/json";
 
