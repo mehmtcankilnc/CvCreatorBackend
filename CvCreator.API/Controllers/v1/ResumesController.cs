@@ -1,4 +1,5 @@
-﻿using CvCreator.API.Constants;
+﻿using Asp.Versioning;
+using CvCreator.API.Constants;
 using CvCreator.Application.Common.Models;
 using CvCreator.Application.Contracts;
 using CvCreator.Application.DTOs;
@@ -8,9 +9,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
-namespace CvCreator.API.Controllers;
+namespace CvCreator.API.Controllers.v1;
 
-[Route("api")]
+[ApiVersion("1.0")]
+[Route("api/v{apiVersion:apiVersion}/resumes")]
 [ApiController]
 [EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class ResumesController(IResumeService resumeService) : ControllerBase
@@ -18,7 +20,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     private readonly IResumeService _resumeService = resumeService;
 
     [AllowAnonymous]
-    [HttpPost("resumes")]
+    [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> CreateResume([FromBody] ResumeFormValuesModel model, [FromQuery] string templateName)
     {
@@ -61,7 +63,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("resumes")]
+    [HttpGet]
     public async Task<IActionResult> GetResumes([FromQuery] string? searchText, [FromQuery] int? limit)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -90,7 +92,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("resumes/{resumeId}")]
+    [HttpGet("{resumeId}")]
     public async Task<IActionResult> GetResumeById(string resumeId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -130,7 +132,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("resumes/download/{resumeId}")]
+    [HttpGet("download/{resumeId}")]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> DownloadResumeById(Guid resumeId)
     {
@@ -161,7 +163,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [Authorize]
-    [HttpDelete("resumes/{resumeId}")]
+    [HttpDelete("{resumeId}")]
     public async Task<IActionResult> DeleteResumeById(Guid resumeId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -186,7 +188,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
     }
 
     [Authorize]
-    [HttpPut("resumes/{resumeId}")]
+    [HttpPut("{resumeId}")]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> UpdateResumeById(
         [FromBody] ResumeFormValuesModel model, Guid resumeId, [FromQuery] string templateName)

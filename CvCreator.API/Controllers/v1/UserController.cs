@@ -1,20 +1,22 @@
-﻿using CvCreator.API.Constants;
+﻿using Asp.Versioning;
+using CvCreator.API.Constants;
 using CvCreator.Application.Common.Models;
 using CvCreator.Application.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
-namespace CvCreator.API.Controllers;
+namespace CvCreator.API.Controllers.v1;
 
-[Route("api")]
+[ApiVersion("1.0")]
+[Route("api/v{apiVersion:apiVersion}/users")]
 [ApiController]
 [EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class UserController(IUserService userService) : ControllerBase
 {
     private readonly IUserService _userService = userService;
 
-    [HttpDelete("users")]
+    [HttpDelete]
     public async Task<IActionResult> DeleteUser()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

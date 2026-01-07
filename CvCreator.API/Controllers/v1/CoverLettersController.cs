@@ -1,4 +1,5 @@
-﻿using CvCreator.API.Constants;
+﻿using Asp.Versioning;
+using CvCreator.API.Constants;
 using CvCreator.Application.Common.Models;
 using CvCreator.Application.Contracts;
 using CvCreator.Application.DTOs;
@@ -8,9 +9,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
-namespace CvCreator.API.Controllers;
+namespace CvCreator.API.Controllers.v1;
 
-[Route("api")]
+[ApiVersion("1.0")]
+[Route("api/v{apiVersion:apiVersion}/coverletters")]
 [ApiController]
 [EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class CoverLettersController
@@ -19,7 +21,7 @@ public class CoverLettersController
     private readonly ICoverLetterService _coverLetterService = coverLetterService;
 
     [AllowAnonymous]
-    [HttpPost("coverletters")]
+    [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> CreateCoverLetter([FromBody] CoverLetterFormValuesModel model)
     {
@@ -57,7 +59,7 @@ public class CoverLettersController
     }
 
     [Authorize]
-    [HttpGet("coverletters")]
+    [HttpGet]
     public async Task<IActionResult> GetMyCoverLetters([FromQuery] string? searchText, [FromQuery] int? limit)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -85,7 +87,7 @@ public class CoverLettersController
     }
 
     [Authorize]
-    [HttpGet("coverletters/{coverLetterId}")]
+    [HttpGet("{coverLetterId}")]
     public async Task<IActionResult> GetCoverLetterById(string coverLetterId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -125,7 +127,7 @@ public class CoverLettersController
     }
 
     [Authorize]
-    [HttpGet("coverletters/download/{coverLetterId}")]
+    [HttpGet("download/{coverLetterId}")]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> DownloadCoverLetterById(Guid coverLetterId)
     {
@@ -156,7 +158,7 @@ public class CoverLettersController
     }
 
     [Authorize]
-    [HttpDelete("coverletters/{coverLetterId}")]
+    [HttpDelete("{coverLetterId}")]
     public async Task<IActionResult> DeleteCoverLetterById(Guid coverLetterId)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -181,7 +183,7 @@ public class CoverLettersController
     }
 
     [Authorize]
-    [HttpPut("coverletters/{coverLetterId}")]
+    [HttpPut("{coverLetterId}")]
     [EnableRateLimiting(RateLimitPolicies.HeavyResource)]
     public async Task<IActionResult> UpdateCoverLetterById(
         [FromBody] CoverLetterFormValuesModel model, Guid coverLetterId)

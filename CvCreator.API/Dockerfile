@@ -15,8 +15,9 @@ RUN dotnet publish "CvCreator.API.csproj" -c Release -o /app/publish /p:UseAppHo
 FROM mcr.microsoft.com/playwright/dotnet:v1.55.0-jammy AS final
 WORKDIR /app
 
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 COPY --from=build /app/publish .
-COPY --from=build /ms-playwright /ms-playwright
+
+ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
+
 ENTRYPOINT ["dotnet", "CvCreator.API.dll"]

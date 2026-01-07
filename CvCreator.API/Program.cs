@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using CvCreator.API.Extensions;
 using CvCreator.API.Middlewares;
 using CvCreator.Application.Contracts;
@@ -85,6 +86,13 @@ try
             tags: ["database"]
         );
 
+    builder.Services.AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1);
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    });
+
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
@@ -128,7 +136,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Uygulama beklenmedik bir þekilde durdu!");
+    Log.Fatal(ex, "Uygulama beklenmedik bir ï¿½ekilde durdu!");
 }
 finally
 {
