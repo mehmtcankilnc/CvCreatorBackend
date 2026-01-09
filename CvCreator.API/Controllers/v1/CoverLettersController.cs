@@ -7,6 +7,7 @@ using CvCreator.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 
 namespace CvCreator.API.Controllers.v1;
@@ -16,9 +17,10 @@ namespace CvCreator.API.Controllers.v1;
 [ApiController]
 [EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
 public class CoverLettersController
-    (ICoverLetterService coverLetterService) : ControllerBase
+    (ICoverLetterService coverLetterService, IMemoryCache memoryCache) : ControllerBase
 {
     private readonly ICoverLetterService _coverLetterService = coverLetterService;
+    private readonly IMemoryCache _memoryCache = memoryCache;
 
     [AllowAnonymous]
     [HttpPost]
@@ -73,15 +75,8 @@ public class CoverLettersController
         {
             return BadRequest(new Result { IsSuccess = false, Message = "Token içindeki ID formatı hatalı." });
         }
-        var coverletters = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, limit);
 
-        var dtos = coverletters.Select(r => new FileResponseDto
-        {
-            Id = r.Id,
-            FileName = r.FileName,
-            CreatedAt = r.CreatedAt,
-            UpdatedAt = r.UpdatedAt,
-        }).ToList();
+        var dtos = await _coverLetterService.GetCoverLettersAsync(userIdAsGuid, searchText, limit);
 
         return Ok(new Result<List<FileResponseDto>> { IsSuccess = true, Message = "Ön yazılar getirildi.", Data = dtos });
     }
@@ -102,7 +97,15 @@ public class CoverLettersController
             return BadRequest(new Result { IsSuccess = false, Message = "Ön yazı ID formatı hatalı." });
         }
 
-        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterIdAsGuid);
+        string cacheKey = $"coverletter_{userIdString}_{coverLetterId}";
+
+        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            entry.SlidingExpiration = TimeSpan.FromMinutes(2);
+
+            return await _coverLetterService.FindCoverLetterByIdAsync(coverLetterIdAsGuid);
+        });
 
         if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
 
@@ -138,7 +141,15 @@ public class CoverLettersController
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+        string cacheKey = $"coverletter_{userIdString}_{coverLetterId}";
+
+        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            entry.SlidingExpiration = TimeSpan.FromMinutes(2);
+
+            return await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+        });
 
         if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
 
@@ -210,22 +221,18 @@ public class CoverLettersController
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var entity = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+        var coverLetterDto = await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
 
-        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+        if (coverLetterDto == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
 
-        if (entity.UserId != Guid.Parse(userIdString))
+        if (coverLetterDto.UserId != Guid.Parse(userIdString))
         {
             return Forbid();
         }
 
-        entity.FileName = model.SenderInfo.FullName;
-        entity.UpdatedAt = DateTime.UtcNow;
-        entity.CoverLetterFormValues = model;
-
         byte[] pdfBytes = await _coverLetterService.CreateCoverLetterPdfAsync(model);
         
-        await _coverLetterService.UpdateCoverLetter(pdfBytes, userIdString, entity);
+        await _coverLetterService.UpdateCoverLetter(pdfBytes, coverLetterId, model);
 
         string cleanName = string.IsNullOrWhiteSpace(model.SenderInfo.FullName)
             ? "coverletter"

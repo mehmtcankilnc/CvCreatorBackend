@@ -7,6 +7,7 @@ using CvCreator.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 
 namespace CvCreator.API.Controllers.v1;
@@ -15,9 +16,11 @@ namespace CvCreator.API.Controllers.v1;
 [Route("api/v{apiVersion:apiVersion}/resumes")]
 [ApiController]
 [EnableRateLimiting(RateLimitPolicies.StandardTraffic)]
-public class ResumesController(IResumeService resumeService) : ControllerBase
+public class ResumesController(
+    IResumeService resumeService, IMemoryCache memoryCache) : ControllerBase
 {
     private readonly IResumeService _resumeService = resumeService;
+    private readonly IMemoryCache _memoryCache = memoryCache;
 
     [AllowAnonymous]
     [HttpPost]
@@ -78,15 +81,7 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
             return BadRequest(new Result { IsSuccess = false, Message = "Token içindeki ID formatı hatalı." });
         }
 
-        var resumes = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, limit);
-
-        var dtos = resumes.Select(r => new FileResponseDto
-        {
-            Id = r.Id,
-            FileName = r.FileName,
-            CreatedAt = r.CreatedAt,
-            UpdatedAt = r.UpdatedAt,
-        }).ToList();
+        var dtos = await _resumeService.GetResumesAsync(userIdAsGuid, searchText, limit);
 
         return Ok(new Result<List<FileResponseDto>> { IsSuccess = true, Message = "Özgeçmişler getirildi.", Data = dtos});
     }
@@ -107,7 +102,15 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
             return BadRequest(new Result { IsSuccess = false, Message = "Özgeçmiş ID formatı hatalı." });
         }
 
-        var entity = await _resumeService.FindResumeByIdAsync(resumeIdAsGuid);
+        string cacheKey = $"resume_{userIdString}_{resumeId}";
+
+        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry => 
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            entry.SlidingExpiration = TimeSpan.FromMinutes(2);
+
+            return await _resumeService.FindResumeByIdAsync(resumeIdAsGuid); 
+        });
 
         if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
 
@@ -143,7 +146,15 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+        string cacheKey = $"resume_{userIdString}_{resumeId}";
+
+        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            entry.SlidingExpiration = TimeSpan.FromMinutes(2);
+
+            return await _resumeService.FindResumeByIdAsync(resumeId);
+        });
 
         if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
 
@@ -220,22 +231,18 @@ public class ResumesController(IResumeService resumeService) : ControllerBase
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+        var resumeDto = await _resumeService.FindResumeByIdAsync(resumeId);
 
-        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+        if (resumeDto == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
 
-        if (entity.UserId != Guid.Parse(userIdString))
+        if (resumeDto.UserId != Guid.Parse(userIdString))
         {
             return Forbid();
         }
 
-        entity.FileName = model.PersonalInfo.FullName;
-        entity.UpdatedAt = DateTime.UtcNow;
-        entity.ResumeFormValues = model;
-
         byte[] pdfBytes = await _resumeService.CreateResumePdfAsync(model, templateName);
 
-        await _resumeService.UpdateResume(pdfBytes, userIdString, entity);
+        await _resumeService.UpdateResume(pdfBytes, resumeId, model);
 
         string cleanName = string.IsNullOrWhiteSpace(model.PersonalInfo.FullName)
             ? "coverletter"

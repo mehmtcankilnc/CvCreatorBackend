@@ -1,26 +1,24 @@
-﻿using CvCreator.Application.Contracts;
+﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using CvCreator.Application.Contracts;
 using CvCreator.Application.DTOs;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
-using CvCreator.Infrastructure.Migrations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace CvCreator.Infrastructure.Services;
 
 public class CoverLetterService
     (AppDbContext appDbContext, ITemplateService templateService,
-    IPdfService pdfService, IConfiguration configuration) : ICoverLetterService
+    IPdfService pdfService,IMapper mapper, SupabaseStorageService supabaseService) : ICoverLetterService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ITemplateService _templateService = templateService;
     private readonly IPdfService _pdfService = pdfService;
-    private readonly IConfiguration _configuration = configuration;
-    private static readonly HttpClient httpClient = new();
+    private readonly IMapper _mapper = mapper;
+    private readonly SupabaseStorageService _supabaseService = supabaseService;
+
+    private const string BUCKET_NAME = "coverletters";
 
     public async Task<byte[]> CreateCoverLetterPdfAsync(CoverLetterFormValuesModel model)
     {
@@ -48,25 +46,9 @@ public class CoverLetterService
         var coverLetterId = Guid.NewGuid();
         var userIdAsGuid = Guid.Parse(userId);
 
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "coverletters";
         var storagePath = $"public/{coverLetterId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        using var content = new ByteArrayContent(fileContent);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-
-        request.Content = content;
-
-        var response = await httpClient.SendAsync(request);
-
-        response.EnsureSuccessStatusCode();
+        await _supabaseService.UploadFileAsync(storagePath, fileContent, BUCKET_NAME);
 
         var newCoverLetter = new CoverLetter
         {
@@ -83,10 +65,10 @@ public class CoverLetterService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<CoverLetter>> GetCoverLettersAsync(Guid id, string? searchText, int? limit)
+    public async Task<List<FileResponseDto>> GetCoverLettersAsync(Guid id, string? searchText, int? limit)
     {
         var finalSearchText = searchText ?? string.Empty;
-        var query = _appDbContext.CoverLetters
+        var query = _appDbContext.CoverLetters.AsNoTracking()
             .Where(coverletter => coverletter.UserId == id);
 
         if (!string.IsNullOrEmpty(searchText))
@@ -97,77 +79,39 @@ public class CoverLetterService
                 EF.Functions.Like(coverletter.FileName.ToLower(), $"%{searchText}%"));
         }
 
+        query = query.OrderByDescending(r => r.UpdatedAt);
+
         if (limit.HasValue)
         {
             query = query.Take(limit.Value);
         }
 
-        return await query.ToListAsync();
+        return await query
+            .ProjectTo<FileResponseDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
     }
 
     public async Task<string> CreateCoverLetterSignedUrlByIdAsync(Guid coverLetterId)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "coverletters";
         var storagePath = $"public/{coverLetterId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/sign/{bucketName}/{storagePath}";
-        var payload = new { expiresIn = 60 };
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        request.Content = JsonContent.Create(payload);
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Supabase API Hatası: {response.StatusCode} - {errorContent}");
-        }
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<SupabaseSignedUrlResponse>(responseContent);
-
-        if (result.SignedUrl.StartsWith("http"))
-        {
-            return result.SignedUrl;
-        }
-        else
-        {
-            return $"{supabaseUrl.TrimEnd('/')}/storage/v1{result.SignedUrl}";
-        }
+        return await _supabaseService.CreateSignedUrlAsync(storagePath, BUCKET_NAME);
     }
 
-    public async Task<CoverLetter?> FindCoverLetterByIdAsync(Guid coverLetterId)
+    public async Task<CoverLetterResponseDto?> FindCoverLetterByIdAsync(Guid coverLetterId)
     {
-        return await _appDbContext.CoverLetters
+        var entity = await _appDbContext.CoverLetters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == coverLetterId);
+
+        return _mapper.Map<CoverLetterResponseDto?>(entity);
     }
 
     public async Task<PdfResponseDto> DownloadCoverLetterAsync(Guid coverLetterId)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "coverletters";
         var storagePath = $"public/{coverLetterId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-        
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Download Failed: {response.StatusCode} - {errorContent}");
-        }
+        var response = await _supabaseService.DownloadFileAsync(storagePath, BUCKET_NAME);
 
         var stream = await response.Content.ReadAsStreamAsync();
 
@@ -181,63 +125,34 @@ public class CoverLetterService
         };
     }
 
-    public async Task DeleteCoverLetterAsync(CoverLetter coverLetter)
+    public async Task DeleteCoverLetterAsync(CoverLetterResponseDto coverLetter)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "coverletters";
         var storagePath = $"public/{coverLetter.Id}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+        await _supabaseService.DeleteFileAsync(storagePath, BUCKET_NAME);
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-
-            throw new Exception($"Delete failed: {response.StatusCode} - {errorContent}");
-        }
-
-        _appDbContext.CoverLetters.Remove(coverLetter);
+        var entity = await _appDbContext.CoverLetters
+            .FirstOrDefaultAsync(c => c.Id == coverLetter.Id);
+        _appDbContext.CoverLetters.Remove(entity!);
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task UpdateCoverLetter(byte[] fileContent, string userId, CoverLetter coverLetter)
+    public async Task UpdateCoverLetter(byte[] fileContent, Guid coverLetterId, CoverLetterFormValuesModel model)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "coverletters";
-        var storagePath = $"public/{coverLetter.Id}";
+        var entity = await _appDbContext.CoverLetters
+            .FirstOrDefaultAsync(c => c.Id == coverLetterId);
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+        var storagePath = $"public/{entity!.Id}";
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, requestUrl);
+        await _supabaseService.UpdateFileAsync(storagePath, fileContent, BUCKET_NAME);
 
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-        request.Headers.Add("x-upsert", "true");
+        entity.CoverLetterFormValues = model;
+        entity.FileName = model.SenderInfo.FullName;
+        entity.UpdatedAt = DateTime.UtcNow;
 
-        using var content = new ByteArrayContent(fileContent);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-
-        request.Content = content;
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        if (entity!.StoragePath != storagePath)
         {
-            var errorContent = await response.Content.ReadAsStringAsync();
-
-            throw new Exception($"Update failed: {response.StatusCode} - {errorContent}");
-        }
-
-        if (coverLetter.StoragePath != storagePath)
-        {
-            coverLetter.StoragePath = storagePath;
+            entity.StoragePath = storagePath;
         }
 
         await _appDbContext.SaveChangesAsync();

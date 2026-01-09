@@ -2,6 +2,7 @@ using Asp.Versioning;
 using CvCreator.API.Extensions;
 using CvCreator.API.Middlewares;
 using CvCreator.Application.Contracts;
+using CvCreator.Application.Mappings;
 using CvCreator.Infrastructure;
 using CvCreator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -10,7 +11,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Playwright;
 using Npgsql;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Serilog;
+using Serilog.Enrichers.Span;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -19,6 +24,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .Enrich.WithSpan()
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger();
 
@@ -31,6 +38,16 @@ try
         options.JsonSerializerOptions.PropertyNamingPolicy =
             System.Text.Json.JsonNamingPolicy.CamelCase);
 
+    builder.Services.AddHttpClient<SupabaseStorageService>(client =>
+    {
+        var config = builder.Configuration;
+        var url = config["Supabase:Url"];
+        var key = config["Supabase:ServiceKey"];
+
+        client.BaseAddress = new Uri($"{url}/storage/v1/");
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", key);
+    });
     builder.Services.AddScoped<IResumeService, ResumeService>();
     builder.Services.AddScoped<ITemplateService, FileSystemTemplateService>();
     builder.Services.AddScoped<IPdfService, PlaywrightPdfService>();
@@ -93,8 +110,35 @@ try
         options.ApiVersionReader = new UrlSegmentApiVersionReader();
     });
 
+    builder.Services.AddOpenTelemetry()
+        .WithTracing(tracing =>
+        {
+            tracing
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri("http://localhost:4317");
+                });
+        })
+        .WithMetrics(metrics =>
+        {
+            metrics
+                .AddAspNetCoreInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddPrometheusExporter();
+        });
+
+    builder.Services.AddMemoryCache();
+    builder.Services.AddAutoMapper(cfg =>
+    {
+        cfg.LicenseKey = builder.Configuration["AutoMapper:LicenseKey"];
+        cfg.AddProfile<MappingProfile>();
+    });
+
     var app = builder.Build();
 
+    app.MapPrometheusScrapingEndpoint();
     app.UseSerilogRequestLogging();
 
     if (!app.Environment.IsDevelopment())
@@ -136,7 +180,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Uygulama beklenmedik bir �ekilde durdu!");
+    Log.Fatal(ex, "Uygulama beklenmedik bir şekilde durdu!");
 }
 finally
 {

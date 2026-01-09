@@ -1,26 +1,25 @@
-﻿using CvCreator.Application.Contracts;
+﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using CvCreator.Application.Contracts;
 using CvCreator.Application.DTOs;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CvCreator.Infrastructure.Services;
 
 public class ResumeService
     (AppDbContext appDbContext, ITemplateService templateService,
-    IPdfService pdfService, IConfiguration configuration) : IResumeService
+    IPdfService pdfService, IMapper mapper, SupabaseStorageService supabaseService) : IResumeService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ITemplateService _templateService = templateService;
     private readonly IPdfService _pdfService = pdfService;
-    private readonly IConfiguration _configuration = configuration;
-    private static readonly HttpClient httpClient = new();
+    private readonly IMapper _mapper = mapper;
+    private readonly SupabaseStorageService _supabaseService = supabaseService;
+
+    private const string BUCKET_NAME = "resumes";
 
     public async Task<byte[]> CreateResumePdfAsync(ResumeFormValuesModel model, string templateName)
     {
@@ -48,25 +47,9 @@ public class ResumeService
         var resumeId = Guid.NewGuid();
         var userIdAsGuid = Guid.Parse(userId);
 
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "resumes";
         var storagePath = $"public/{resumeId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        using var content = new ByteArrayContent(fileContent);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-
-        request.Content = content;
-
-        var response = await httpClient.SendAsync(request);
-
-        response.EnsureSuccessStatusCode();
+        await _supabaseService.UploadFileAsync(storagePath, fileContent, BUCKET_NAME);
 
         var newResume = new Resume
         {
@@ -83,10 +66,11 @@ public class ResumeService
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task<List<Resume>> GetResumesAsync(Guid id, string? searchText, int? limit)
+    public async Task<List<FileResponseDto>> GetResumesAsync(Guid id, string? searchText, int? limit)
     {
         var finalSearchText = searchText ?? string.Empty;
-        var query = _appDbContext.Resumes.Where(resume => resume.UserId == id);
+        var query = _appDbContext.Resumes.AsNoTracking()
+            .Where(resume => resume.UserId == id);
 
         if (!string.IsNullOrEmpty(finalSearchText))
         {
@@ -96,77 +80,39 @@ public class ResumeService
                 EF.Functions.Like(resume.FileName.ToLower(), $"%{searchText}%"));
         }
 
+        query = query.OrderByDescending(r => r.UpdatedAt);
+
         if (limit.HasValue)
         {
             query = query.Take(limit.Value);
         }
 
-        return await query.ToListAsync();
+        return await query
+            .ProjectTo<FileResponseDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
     }
 
     public async Task<string> CreateResumeSignedUrlByIdAsync(Guid resumeId)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "resumes";
         var storagePath = $"public/{resumeId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/sign/{bucketName}/{storagePath}";
-        var payload = new { expiresIn = 60 };
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        request.Content = JsonContent.Create(payload);
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Supabase API Hatası: {response.StatusCode} - {errorContent}");
-        }
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<SupabaseSignedUrlResponse>(responseContent);
-
-        if (result.SignedUrl.StartsWith("http"))
-        {
-            return result.SignedUrl;
-        }
-        else
-        {
-            return $"{supabaseUrl.TrimEnd('/')}/storage/v1{result.SignedUrl}";
-        }
+        return await _supabaseService.CreateSignedUrlAsync(storagePath, BUCKET_NAME);
     }
 
-    public async Task<Resume?> FindResumeByIdAsync(Guid resumeId)
+    public async Task<ResumeResponseDto?> FindResumeByIdAsync(Guid resumeId)
     {
-        return await _appDbContext.Resumes
+        var entity = await _appDbContext.Resumes
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == resumeId);
+
+        return _mapper.Map<ResumeResponseDto>(entity);
     }
 
     public async Task<PdfResponseDto> DownloadResumeAsync(Guid resumeId)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "resumes";
         var storagePath = $"public/{resumeId}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"{response.StatusCode} - {errorContent}");
-        }
+        var response = await _supabaseService.DownloadFileAsync(storagePath, BUCKET_NAME);
 
         var stream = await response.Content.ReadAsStreamAsync();
 
@@ -180,63 +126,34 @@ public class ResumeService
         };
     }
 
-    public async Task DeleteResumeAsync(Resume resume)
+    public async Task DeleteResumeAsync(ResumeResponseDto resume)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "resumes";
         var storagePath = $"public/{resume.Id}";
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+        await _supabaseService.DeleteFileAsync(storagePath, BUCKET_NAME);
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
-
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-
-            throw new Exception($"Delete failed: {response.StatusCode} - {errorContent}");
-        }
-
-        _appDbContext.Resumes.Remove(resume);
+        var entity = await _appDbContext.Resumes
+            .FirstOrDefaultAsync(c => c.Id == resume.Id);
+        _appDbContext.Resumes.Remove(entity!);
         await _appDbContext.SaveChangesAsync();
     }
 
-    public async Task UpdateResume(byte[] fileContent, string userId, Resume resume)
+    public async Task UpdateResume(byte[] fileContent, Guid resumeId, ResumeFormValuesModel model)
     {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var bucketName = "resumes";
-        var storagePath = $"public/{resume.Id}";
+        var entity = await _appDbContext.Resumes
+            .FirstOrDefaultAsync(c => c.Id == resumeId);
 
-        var requestUrl = $"{supabaseUrl}/storage/v1/object/{bucketName}/{storagePath}";
+        var storagePath = $"public/{entity!.Id}";
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, requestUrl);
+        await _supabaseService.UpdateFileAsync(storagePath, fileContent, BUCKET_NAME);
 
-        request.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-        request.Headers.Add("x-upsert", "true");
+        entity.ResumeFormValues = model;
+        entity.FileName = model.PersonalInfo.FullName;
+        entity.UpdatedAt = DateTime.UtcNow;
 
-        using var content = new ByteArrayContent(fileContent);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-
-        request.Content = content;
-
-        var response = await httpClient.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        if (entity!.StoragePath != storagePath)
         {
-            var errorContent = await response.Content.ReadAsStringAsync();
-
-            throw new Exception($"Update failed: {response.StatusCode} - {errorContent}");
-        }
-
-        if (resume.StoragePath != storagePath)
-        {
-            resume.StoragePath = storagePath;
+            entity.StoragePath = storagePath;
         }
 
         await _appDbContext.SaveChangesAsync();
