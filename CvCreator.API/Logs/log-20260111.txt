@@ -1,0 +1,4 @@
+{"Timestamp":"2026-01-11T17:35:16.2965815+03:00","Level":"Information","MessageTemplate":"Now listening on: {address}","Properties":{"address":"http://0.0.0.0:5128","EventId":{"Id":14,"Name":"ListeningOnAddress"},"SourceContext":"Microsoft.Hosting.Lifetime"}}
+{"Timestamp":"2026-01-11T17:35:16.4356242+03:00","Level":"Information","MessageTemplate":"Application started. Press Ctrl+C to shut down.","Properties":{"SourceContext":"Microsoft.Hosting.Lifetime"}}
+{"Timestamp":"2026-01-11T17:35:16.4379304+03:00","Level":"Information","MessageTemplate":"Hosting environment: {EnvName}","Properties":{"EnvName":"Development","SourceContext":"Microsoft.Hosting.Lifetime"}}
+{"Timestamp":"2026-01-11T17:35:16.4397387+03:00","Level":"Information","MessageTemplate":"Content root path: {ContentRoot}","Properties":{"ContentRoot":"C:\\Users\\mehmt\\Desktop\\CvCreatorServer\\CvCreator.API","SourceContext":"Microsoft.Hosting.Lifetime"}}

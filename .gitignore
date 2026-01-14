@@ -54,3 +54,6 @@ _ReSharper*/
 Thumbs.db
 # macOS
 .DS_Store
+
+CvCreator.API/Uploads/*
+!CvCreator.API/Uploads/.gitkeep

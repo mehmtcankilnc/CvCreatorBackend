@@ -5,21 +5,20 @@ using CvCreator.Application.DTOs;
 using CvCreator.Domain.Entities;
 using CvCreator.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization;
 
 namespace CvCreator.Infrastructure.Services;
 
 public class ResumeService
     (AppDbContext appDbContext, ITemplateService templateService,
-    IPdfService pdfService, IMapper mapper, SupabaseStorageService supabaseService) : IResumeService
+    IPdfService pdfService, IMapper mapper, IFileService fileService) : IResumeService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ITemplateService _templateService = templateService;
     private readonly IPdfService _pdfService = pdfService;
     private readonly IMapper _mapper = mapper;
-    private readonly SupabaseStorageService _supabaseService = supabaseService;
+    private readonly IFileService _fileService = fileService;
 
-    private const string BUCKET_NAME = "resumes";
+    private const string FOLDER_NAME = "Resumes";
 
     public async Task<byte[]> CreateResumePdfAsync(ResumeFormValuesModel model, string templateName)
     {
@@ -36,20 +35,18 @@ public class ResumeService
 
         if (userId.HasValue)
         {
-            await SaveResume(pdfBytes, userId.Value.ToString(), model);
+            await SaveResumeAsync(pdfBytes, userId.Value.ToString(), model);
         }
 
         return pdfBytes;
     }
 
-    public async Task SaveResume(byte[] fileContent, string userId, ResumeFormValuesModel model)
+    public async Task SaveResumeAsync(byte[] fileContent, string userId, ResumeFormValuesModel model)
     {
         var resumeId = Guid.NewGuid();
-        var userIdAsGuid = Guid.Parse(userId);
+        var fileName = $"{resumeId}.pdf";
 
-        var storagePath = $"public/{resumeId}";
-
-        await _supabaseService.UploadFileAsync(storagePath, fileContent, BUCKET_NAME);
+        var storagePath = await _fileService.SaveFileAsync(FOLDER_NAME, fileName, fileContent);
 
         var newResume = new Resume
         {
@@ -59,7 +56,7 @@ public class ResumeService
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             ResumeFormValues = model,
-            UserId = userIdAsGuid,
+            AppUserId = Guid.Parse(userId),
         };
 
         _appDbContext.Resumes.Add(newResume);
@@ -70,7 +67,7 @@ public class ResumeService
     {
         var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.Resumes.AsNoTracking()
-            .Where(resume => resume.UserId == id);
+            .Where(resume => resume.AppUserId == id);
 
         if (!string.IsNullOrEmpty(finalSearchText))
         {
@@ -92,13 +89,6 @@ public class ResumeService
             .ToListAsync();
     }
 
-    public async Task<string> CreateResumeSignedUrlByIdAsync(Guid resumeId)
-    {
-        var storagePath = $"public/{resumeId}";
-
-        return await _supabaseService.CreateSignedUrlAsync(storagePath, BUCKET_NAME);
-    }
-
     public async Task<ResumeResponseDto?> FindResumeByIdAsync(Guid resumeId)
     {
         var entity = await _appDbContext.Resumes
@@ -108,33 +98,22 @@ public class ResumeService
         return _mapper.Map<ResumeResponseDto>(entity);
     }
 
-    public async Task<PdfResponseDto> DownloadResumeAsync(Guid resumeId)
-    {
-        var storagePath = $"public/{resumeId}";
-
-        var response = await _supabaseService.DownloadFileAsync(storagePath, BUCKET_NAME);
-
-        var stream = await response.Content.ReadAsStreamAsync();
-
-        long? length = response.Content.Headers.ContentLength;
-
-        return new PdfResponseDto
-        {
-            Stream = stream,
-            ContentType = "application/pdf",
-            FileLength = length
-        };
-    }
-
     public async Task DeleteResumeAsync(ResumeResponseDto resume)
     {
-        var storagePath = $"public/{resume.Id}";
-
-        await _supabaseService.DeleteFileAsync(storagePath, BUCKET_NAME);
-
         var entity = await _appDbContext.Resumes
             .FirstOrDefaultAsync(c => c.Id == resume.Id);
-        _appDbContext.Resumes.Remove(entity!);
+
+        if (entity == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(entity.StoragePath))
+        {
+            _fileService.DeleteFile(entity.StoragePath);
+        }
+
+        _appDbContext.Resumes.Remove(entity);
         await _appDbContext.SaveChangesAsync();
     }
 
@@ -143,25 +122,48 @@ public class ResumeService
         var entity = await _appDbContext.Resumes
             .FirstOrDefaultAsync(c => c.Id == resumeId);
 
-        var storagePath = $"public/{entity!.Id}";
+        if (entity == null) return;
 
-        await _supabaseService.UpdateFileAsync(storagePath, fileContent, BUCKET_NAME);
+        if (fileContent != null && fileContent.Length > 0)
+        {
+            if (!string.IsNullOrEmpty(entity.StoragePath))
+            {
+                _fileService.DeleteFile(entity.StoragePath);
+            }
+
+            string storageFileName = $"{entity.Id}.pdf";
+
+            string newStoragePath = await _fileService.SaveFileAsync(FOLDER_NAME, storageFileName, fileContent);
+
+            entity.StoragePath = newStoragePath;
+        }
 
         entity.ResumeFormValues = model;
         entity.FileName = model.PersonalInfo.FullName;
         entity.UpdatedAt = DateTime.UtcNow;
 
-        if (entity!.StoragePath != storagePath)
-        {
-            entity.StoragePath = storagePath;
-        }
-
         await _appDbContext.SaveChangesAsync();
     }
-}
 
-public class SupabaseSignedUrlResponse
-{
-    [JsonPropertyName("signedURL")]
-    public string SignedUrl { get; set; }
+    public async Task<(byte[] FileContent, string FileName)?> GetResumeFileAsync(Guid resumeId, Guid currentUserId)
+    {
+        var entity = await _appDbContext.Resumes.FindAsync(resumeId);
+
+        if (entity == null) return null;
+
+        if (entity.AppUserId != currentUserId)
+        {
+            return null;
+        }
+
+        try
+        {
+            var fileBytes = await _fileService.GetFileAsync(entity.StoragePath);
+            return (fileBytes, entity.FileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
 }

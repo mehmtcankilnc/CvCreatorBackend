@@ -4,9 +4,11 @@ using CvCreator.API.Middlewares;
 using CvCreator.Application.Contracts;
 using CvCreator.Application.Mappings;
 using CvCreator.Infrastructure;
+using CvCreator.Infrastructure.Identity;
 using CvCreator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Playwright;
@@ -15,7 +17,6 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Enrichers.Span;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -38,21 +39,14 @@ try
         options.JsonSerializerOptions.PropertyNamingPolicy =
             System.Text.Json.JsonNamingPolicy.CamelCase);
 
-    builder.Services.AddHttpClient<SupabaseStorageService>(client =>
-    {
-        var config = builder.Configuration;
-        var url = config["Supabase:Url"];
-        var key = config["Supabase:ServiceKey"];
-
-        client.BaseAddress = new Uri($"{url}/storage/v1/");
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", key);
-    });
     builder.Services.AddScoped<IResumeService, ResumeService>();
     builder.Services.AddScoped<ITemplateService, FileSystemTemplateService>();
     builder.Services.AddScoped<IPdfService, PlaywrightPdfService>();
     builder.Services.AddScoped<ICoverLetterService, CoverLetterService>();
     builder.Services.AddScoped<IUserService, UserService>();
+    builder.Services.AddScoped<ITokenService, TokenService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IFileService, LocalFileService>();
 
     builder.Services.AddCustomRateLimiting();
 
@@ -63,7 +57,7 @@ try
 
     var policyCollection = new HeaderPolicyCollection().AddDefaultSecurityHeaders();
 
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    var connectionString = builder.Configuration.GetConnectionString("Postgres");
 
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
     dataSourceBuilder.EnableDynamicJson();
@@ -71,9 +65,10 @@ try
     var dataSource = dataSourceBuilder.Build();
 
     builder.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(dataSource));
-
-    var supabaseUrl = builder.Configuration["Supabase:Url"];
-    var supabaseSecret = builder.Configuration["Supabase:JwtSecret"];
+    builder.Services.AddIdentity<ApplicationIdentityUser, IdentityRole<Guid>>(opt =>
+    {
+        opt.User.RequireUniqueEmail = true;
+    }).AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
 
     builder.Services.AddAuthentication(options =>
     {
@@ -84,15 +79,16 @@ try
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = $"{supabaseUrl}/auth/v1",
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
 
             ValidateAudience = true,
-            ValidAudience = "authenticated",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"],
 
             ValidateLifetime = true,
 
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(supabaseSecret!))
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Secret"]!))
         };
     });
 

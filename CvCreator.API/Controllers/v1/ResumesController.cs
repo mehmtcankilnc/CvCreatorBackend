@@ -69,7 +69,7 @@ public class ResumesController(
     [HttpGet]
     public async Task<IActionResult> GetResumes([FromQuery] string? searchText, [FromQuery] int? limit)
     {
-        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userIdString))
         {
@@ -119,18 +119,15 @@ public class ResumesController(
             return Forbid();
         }
 
-        var signedUrl = await _resumeService.CreateResumeSignedUrlByIdAsync(resumeIdAsGuid);
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
-        if (string.IsNullOrEmpty(signedUrl))
-        {
-            return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
-        }
+        var downloadUrl = $"{baseUrl}/api/v1/resumes/download/{resumeId}";
 
         return Ok(new Result<object>
         {
             IsSuccess = true,
             Message = "Özgeçmiş getirildi.",
-            Data = new { Url = signedUrl, FormValues = entity }
+            Data = new { Url = downloadUrl, FormValues = entity }
         });
     }
 
@@ -146,31 +143,19 @@ public class ResumesController(
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        string cacheKey = $"resume_{userIdString}_{resumeId}";
+        string cacheKey = $"resume_file_{userIdString}_{resumeId}";
 
-        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
+        var result = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
             entry.SlidingExpiration = TimeSpan.FromMinutes(2);
 
-            return await _resumeService.FindResumeByIdAsync(resumeId);
+            return await _resumeService.GetResumeFileAsync(resumeId, Guid.Parse(userIdString));
         });
 
-        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+        if (result == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
 
-        if (entity.UserId != Guid.Parse(userIdString))
-        {
-            return Forbid();
-        }
-
-        var fileDto = await _resumeService.DownloadResumeAsync(resumeId);
-
-        if (fileDto.FileLength.HasValue)
-        {
-            Response.Headers.ContentLength = fileDto.FileLength.Value;
-        }
-
-        return File(fileDto.Stream, fileDto.ContentType);
+        return File(result.Value.FileContent, "application/pdf", result.Value.FileName);
     }
 
     [Authorize]
@@ -184,16 +169,16 @@ public class ResumesController(
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var entity = await _resumeService.FindResumeByIdAsync(resumeId);
+        var resumeDto = await _resumeService.FindResumeByIdAsync(resumeId);
 
-        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
+        if (resumeDto == null) return NotFound(new Result { IsSuccess = false, Message = "Özgeçmiş bulunamadı." });
 
-        if (entity.UserId != Guid.Parse(userIdString))
+        if (resumeDto.UserId != Guid.Parse(userIdString))
         {
             return Forbid();
         }
 
-        await _resumeService.DeleteResumeAsync(entity);
+        await _resumeService.DeleteResumeAsync(resumeDto);
 
         return NoContent();
     }

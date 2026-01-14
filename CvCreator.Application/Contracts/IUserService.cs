@@ -2,6 +2,5 @@
 
 public interface IUserService
 {
-    Task<bool> DeleteUserFromSupabase(string userId);
-    Task DeleteRelatedData(Guid userId);
+    Task<bool> DeleteUserAccountAsync(Guid userId);
 }

@@ -64,7 +64,7 @@ public class CoverLettersController
     [HttpGet]
     public async Task<IActionResult> GetMyCoverLetters([FromQuery] string? searchText, [FromQuery] int? limit)
     {
-        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userIdString))
         {
@@ -85,7 +85,7 @@ public class CoverLettersController
     [HttpGet("{coverLetterId}")]
     public async Task<IActionResult> GetCoverLetterById(string coverLetterId)
     {
-        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userIdString))
         {
@@ -114,18 +114,15 @@ public class CoverLettersController
             return Forbid();
         }
 
-        var signedUrl = await _coverLetterService.CreateCoverLetterSignedUrlByIdAsync(coverLetterIdAsGuid);
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
-        if (string.IsNullOrEmpty(signedUrl))
-        {
-            return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
-        }
+        var downloadUrl = $"{baseUrl}/api/v1/coverletters/download/{coverLetterId}";
 
         return Ok(new Result<object>
         {
             IsSuccess = true,
             Message = "Ön yazı getirildi.",
-            Data = new { Url = signedUrl, FormValues = entity }
+            Data = new { Url = downloadUrl, FormValues = entity }
         });
     }
 
@@ -141,31 +138,19 @@ public class CoverLettersController
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        string cacheKey = $"coverletter_{userIdString}_{coverLetterId}";
+        string cacheKey = $"coverletter_file_{userIdString}_{coverLetterId}";
 
-        var entity = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
+        var result = await _memoryCache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
             entry.SlidingExpiration = TimeSpan.FromMinutes(2);
 
-            return await _coverLetterService.FindCoverLetterByIdAsync(coverLetterId);
+            return await _coverLetterService.GetCoverLetterFileAsync(coverLetterId, Guid.Parse(userIdString));
         });
 
-        if (entity == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
+        if (result == null) return NotFound(new Result { IsSuccess = false, Message = "Ön yazı bulunamadı." });
 
-        if (entity.UserId != Guid.Parse(userIdString))
-        {
-            return Forbid();
-        }
-
-        var fileDto = await _coverLetterService.DownloadCoverLetterAsync(coverLetterId);
-
-        if (fileDto.FileLength.HasValue)
-        {
-            Response.Headers.ContentLength = fileDto.FileLength.Value;
-        }
-
-        return File(fileDto.Stream, fileDto.ContentType);
+        return File(result.Value.FileContent, "application/pdf", result.Value.FileName);
     }
 
     [Authorize]

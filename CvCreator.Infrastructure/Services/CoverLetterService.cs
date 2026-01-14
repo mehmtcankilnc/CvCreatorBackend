@@ -10,15 +10,15 @@ namespace CvCreator.Infrastructure.Services;
 
 public class CoverLetterService
     (AppDbContext appDbContext, ITemplateService templateService,
-    IPdfService pdfService,IMapper mapper, SupabaseStorageService supabaseService) : ICoverLetterService
+    IPdfService pdfService,IMapper mapper, IFileService fileService) : ICoverLetterService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
     private readonly ITemplateService _templateService = templateService;
     private readonly IPdfService _pdfService = pdfService;
     private readonly IMapper _mapper = mapper;
-    private readonly SupabaseStorageService _supabaseService = supabaseService;
+    private readonly IFileService _fileService = fileService;
 
-    private const string BUCKET_NAME = "coverletters";
+    private const string FOLDER_NAME = "CoverLetters";
 
     public async Task<byte[]> CreateCoverLetterPdfAsync(CoverLetterFormValuesModel model)
     {
@@ -35,20 +35,18 @@ public class CoverLetterService
 
         if (userId.HasValue)
         {
-            await SaveCoverLetter(pdfBytes, userId.Value.ToString(), model);
+            await SaveCoverLetterAsync(pdfBytes, userId.Value.ToString(), model);
         }
 
         return pdfBytes;
     }
 
-    public async Task SaveCoverLetter(byte[] fileContent, string userId, CoverLetterFormValuesModel model)
+    public async Task SaveCoverLetterAsync(byte[] fileContent, string userId, CoverLetterFormValuesModel model)
     {
         var coverLetterId = Guid.NewGuid();
-        var userIdAsGuid = Guid.Parse(userId);
+        var fileName = $"{coverLetterId}.pdf";
 
-        var storagePath = $"public/{coverLetterId}";
-
-        await _supabaseService.UploadFileAsync(storagePath, fileContent, BUCKET_NAME);
+        var storagePath = await _fileService.SaveFileAsync(FOLDER_NAME, fileName, fileContent);
 
         var newCoverLetter = new CoverLetter
         {
@@ -58,7 +56,7 @@ public class CoverLetterService
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             CoverLetterFormValues = model,
-            UserId = userIdAsGuid,
+            AppUserId = Guid.Parse(userId),
         };
 
         _appDbContext.CoverLetters.Add(newCoverLetter);
@@ -69,7 +67,7 @@ public class CoverLetterService
     {
         var finalSearchText = searchText ?? string.Empty;
         var query = _appDbContext.CoverLetters.AsNoTracking()
-            .Where(coverletter => coverletter.UserId == id);
+            .Where(coverletter => coverletter.AppUserId == id);
 
         if (!string.IsNullOrEmpty(searchText))
         {
@@ -91,13 +89,6 @@ public class CoverLetterService
             .ToListAsync();
     }
 
-    public async Task<string> CreateCoverLetterSignedUrlByIdAsync(Guid coverLetterId)
-    {
-        var storagePath = $"public/{coverLetterId}";
-
-        return await _supabaseService.CreateSignedUrlAsync(storagePath, BUCKET_NAME);
-    }
-
     public async Task<CoverLetterResponseDto?> FindCoverLetterByIdAsync(Guid coverLetterId)
     {
         var entity = await _appDbContext.CoverLetters
@@ -107,33 +98,22 @@ public class CoverLetterService
         return _mapper.Map<CoverLetterResponseDto?>(entity);
     }
 
-    public async Task<PdfResponseDto> DownloadCoverLetterAsync(Guid coverLetterId)
-    {
-        var storagePath = $"public/{coverLetterId}";
-
-        var response = await _supabaseService.DownloadFileAsync(storagePath, BUCKET_NAME);
-
-        var stream = await response.Content.ReadAsStreamAsync();
-
-        long? length = response.Content.Headers.ContentLength;
-
-        return new PdfResponseDto
-        {
-            Stream = stream,
-            ContentType = "application/pdf",
-            FileLength = length
-        };
-    }
-
     public async Task DeleteCoverLetterAsync(CoverLetterResponseDto coverLetter)
     {
-        var storagePath = $"public/{coverLetter.Id}";
-
-        await _supabaseService.DeleteFileAsync(storagePath, BUCKET_NAME);
-
         var entity = await _appDbContext.CoverLetters
             .FirstOrDefaultAsync(c => c.Id == coverLetter.Id);
-        _appDbContext.CoverLetters.Remove(entity!);
+
+        if (entity == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(entity.StoragePath))
+        {
+            _fileService.DeleteFile(entity.StoragePath);
+        }
+
+        _appDbContext.CoverLetters.Remove(entity);
         await _appDbContext.SaveChangesAsync();
     }
 
@@ -142,19 +122,48 @@ public class CoverLetterService
         var entity = await _appDbContext.CoverLetters
             .FirstOrDefaultAsync(c => c.Id == coverLetterId);
 
-        var storagePath = $"public/{entity!.Id}";
+        if (entity == null) return;
 
-        await _supabaseService.UpdateFileAsync(storagePath, fileContent, BUCKET_NAME);
+        if (fileContent != null && fileContent.Length > 0)
+        {
+            if (!string.IsNullOrEmpty(entity.StoragePath))
+            {
+                _fileService.DeleteFile(entity.StoragePath);
+            }
+
+            string storageFileName = $"{entity.Id}.pdf";
+
+            string newStoragePath = await _fileService.SaveFileAsync(FOLDER_NAME, storageFileName, fileContent);
+
+            entity.StoragePath = newStoragePath;
+        }
 
         entity.CoverLetterFormValues = model;
         entity.FileName = model.SenderInfo.FullName;
         entity.UpdatedAt = DateTime.UtcNow;
 
-        if (entity!.StoragePath != storagePath)
+        await _appDbContext.SaveChangesAsync();
+    }
+
+    public async Task<(byte[] FileContent, string FileName)?> GetCoverLetterFileAsync(Guid coverLetterId, Guid currentUserId)
+    {
+        var entity = await _appDbContext.CoverLetters.FindAsync(coverLetterId);
+
+        if (entity == null) return null;
+
+        if (entity.AppUserId != currentUserId)
         {
-            entity.StoragePath = storagePath;
+            return null;
         }
 
-        await _appDbContext.SaveChangesAsync();
+        try
+        {
+            var fileBytes = await _fileService.GetFileAsync(entity.StoragePath);
+            return (fileBytes, entity.FileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
     }
 }

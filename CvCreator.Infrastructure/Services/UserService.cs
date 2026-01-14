@@ -1,51 +1,57 @@
 ﻿using CvCreator.Application.Contracts;
-using Microsoft.Extensions.Configuration;
-using System.Net.Http;
+using CvCreator.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CvCreator.Infrastructure.Services;
 
 public class UserService(
-    IConfiguration configuration, AppDbContext appDbContext) : IUserService
+    AppDbContext appDbContext, IFileService fileService,
+    UserManager<ApplicationIdentityUser> userManager) : IUserService
 {
     private readonly AppDbContext _appDbContext = appDbContext;
-    private readonly IConfiguration _configuration = configuration;
-    private static readonly HttpClient httpClient = new();
+    private readonly IFileService _fileService = fileService;
 
-    public async Task DeleteRelatedData(Guid userId)
+    public async Task<bool> DeleteUserAccountAsync(Guid userId)
     {
-        var resumesToDelete = _appDbContext.Resumes.Where(r => r.UserId == userId);
-        _appDbContext.Resumes.RemoveRange(resumesToDelete);
+        var identityUser = await userManager.FindByIdAsync(userId.ToString());
+        if (identityUser == null) return false;
 
-        var lettersToDelete = _appDbContext.CoverLetters.Where(c => c.UserId == userId);
-        _appDbContext.CoverLetters.RemoveRange(lettersToDelete);
+        var appUser = await _appDbContext.AppUsers
+            .Include(u => u.Resumes)
+            .Include(u => u.CoverLetters)
+            .FirstOrDefaultAsync(u => u.Id == userId);
 
-        await _appDbContext.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteUserFromSupabase(string userId)
-    {
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseSecretKey = _configuration["Supabase:SecretKey"];
-
-        var requestUrl = $"{supabaseUrl}/auth/v1/admin/users/{userId}";
-
-        using var request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);
-
-        request.Headers.Add("apikey", supabaseSecretKey);
-
-        Console.WriteLine(userId);
-        Console.WriteLine("@@");
-        Console.WriteLine(request);
-
-        var response = await httpClient.SendAsync(request);
-
-        if (response.IsSuccessStatusCode)
+        if (appUser != null)
         {
-            return true;
+            if (appUser.Resumes != null)
+            {
+                foreach (var resume in appUser.Resumes)
+                {
+                    if (!string.IsNullOrEmpty(resume.StoragePath))
+                    {
+                        _fileService.DeleteFile(resume.StoragePath);
+                    }
+                }
+            }
+
+            if (appUser.CoverLetters != null)
+            {
+                foreach (var coverLetter in appUser.CoverLetters)
+                {
+                    if (!string.IsNullOrEmpty(coverLetter.StoragePath))
+                    {
+                        _fileService.DeleteFile(coverLetter.StoragePath);
+                    }
+                }
+            }
+
+            _appDbContext.AppUsers.Remove(appUser);
+            await _appDbContext.SaveChangesAsync();
         }
 
-        var errorContent = await response.Content.ReadAsStringAsync();
+        var result = await userManager.DeleteAsync(identityUser);
 
-        return false;
+        return result.Succeeded;
     }
 }

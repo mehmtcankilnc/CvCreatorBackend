@@ -8,9 +8,11 @@ public class MappingProfile : Profile
 {
     public MappingProfile()
     {
-        CreateMap<Resume, ResumeResponseDto>();
+        CreateMap<Resume, ResumeResponseDto>()
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.AppUserId));
         CreateMap<Resume, FileResponseDto>();
-        CreateMap<CoverLetter, CoverLetterResponseDto>();
+        CreateMap<CoverLetter, CoverLetterResponseDto>()
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.AppUserId));
         CreateMap<CoverLetter, FileResponseDto>();
     }
 }

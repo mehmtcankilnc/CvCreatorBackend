@@ -19,21 +19,20 @@ public class UserController(IUserService userService) : ControllerBase
     [HttpDelete]
     public async Task<IActionResult> DeleteUser()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
         {
             return Unauthorized(new Result { IsSuccess = false, Message = "Kullanıcı kimliği doğrulanamadı." });
         }
 
-        var success = await _userService.DeleteUserFromSupabase(userId);
+        var success = await _userService.DeleteUserAccountAsync(userId);
 
         if (!success)
         {
-            return StatusCode(500, new Result { IsSuccess = false, Message = "Kullanıcı Supabase'den silinemedi." });
+            return StatusCode(500, new Result { IsSuccess = false, Message = "Kullanıcı silinirken bir hata oluştu." });
         }
 
-        await _userService.DeleteRelatedData(Guid.Parse(userId));
-
-        return Ok(new Result { IsSuccess = true, Message = "Kullanıcı silindi."});
+        return Ok(new Result { IsSuccess = true, Message = "Kullanıcı ve tüm verileri başarıyla silindi." });
     }
 }
