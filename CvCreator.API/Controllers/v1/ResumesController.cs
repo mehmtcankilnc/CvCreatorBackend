@@ -121,6 +121,11 @@ public class ResumesController(
 
         var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
+        if (!baseUrl.Contains("localhost") && baseUrl.StartsWith("http://"))
+        {
+            baseUrl = baseUrl.Replace("http://", "https://");
+        }
+
         var downloadUrl = $"{baseUrl}/api/v1/resumes/download/{resumeId}";
 
         return Ok(new Result<object>
